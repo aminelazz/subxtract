@@ -181,7 +181,7 @@ def save_allowed_channels(guild_id: str, channel_id: str, file_path: Path = Path
 
     # Save the updated data back to the file
     with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+        json.dump(data.dict(), f, ensure_ascii=False, indent=4)
 
 def remove_allowed_channel(guild_id: str, channel_id: str, file_path: Path = Path(ALLOWED_CHANNELS_FILE)):
     """Removes a channel ID from the allowed channels file."""
