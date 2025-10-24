@@ -7,7 +7,7 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 ARIA2_RPC_URL = os.getenv("ARIA2_RPC_URL", "http://localhost:6800/jsonrpc")
-ARIA2_RPC_HOST = os.getenv("ARIA2_RPC_HOST", "localhost")
+ARIA2_RPC_HOST = os.getenv("ARIA2_RPC_HOST", "http://localhost")
 ARIA2_RPC_PORT = os.getenv("ARIA2_RPC_PORT", "6800")
 ARIA2_RPC_SECRET = os.getenv("ARIA2_RPC_SECRET", "")
 TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
