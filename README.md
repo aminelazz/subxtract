@@ -86,8 +86,7 @@ Rename `.env.example` file to `.env` and edit it:
 DISCORD_TOKEN=your_discord_bot_token_here
 
 # Aria2 RPC Configuration
-ARIA2_RPC_URL=http://localhost:6800/jsonrpc
-ARIA2_RPC_HOST=localhost
+ARIA2_RPC_HOST=http://localhost
 ARIA2_RPC_PORT=6800
 ARIA2_RPC_SECRET=
 
@@ -226,8 +225,7 @@ subxtract/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DISCORD_TOKEN` | Discord bot token | *Required* |
-| `ARIA2_RPC_URL` | Aria2 RPC endpoint | `http://localhost:6800/jsonrpc` |
-| `ARIA2_RPC_HOST` | Aria2 RPC host | `localhost` |
+| `ARIA2_RPC_HOST` | Aria2 RPC host | `http://localhost` |
 | `ARIA2_RPC_PORT` | Aria2 RPC port | `6800` |
 | `ARIA2_RPC_SECRET` | Aria2 RPC secret token | *(empty)* |
 | `TEMP_DIR` | Temporary files directory | `./temp` |
