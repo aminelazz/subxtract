@@ -46,7 +46,7 @@ def get_merge_commands(files: list[Path], type: Literal["subs", "attachments"]) 
     return (
         f"To merge the {type} into a single zip file, use the following commands:\n\n"
         f"```Windows:\n{windows_command}\n\n"
-        f"```Unix:\n{unix_command}```"
+        f"Unix:\n{unix_command}```"
     )
 
 # Check if the command has been run in the allowed channel
@@ -86,7 +86,7 @@ async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool |
             logger.error("Download error: %s", status.get('error', 'Unknown error'))
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
-            # file_utils.clear_temp()
+            file_utils.clear_temp()
             return False
         await message.edit(
             content=get_download_status_message(status, gid)
@@ -100,13 +100,13 @@ async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool |
         logger.error("An error occurred while tracking progress: %s", e)
         aria2_service.remove_all_downloads(force=True)
         file_utils.clear_current_dl()
-        # file_utils.clear_temp()
+        file_utils.clear_temp()
         return False
 
 async def extract_from_download(gid: str, ctx: SlashContext, message: Message, dir_path: Path, event = extraction_cancel_event) -> str | None:
     """Extracts files from the downloaded archive."""
     # Configure logging
-    logger = get_logger("extractor")
+    logger = get_logger("extract_from_download")
 
     logger.info("Starting extraction of Matroska files from download with GID: %s", gid)
     all_files_dict = file_utils.get_temp_files(dir_path)
@@ -118,7 +118,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         logger.warning("No Matroska files found for extraction, Extraction aborted.")
         aria2_service.remove_all_downloads(force=True)
         file_utils.clear_current_dl()
-        # file_utils.clear_temp()
+        file_utils.clear_temp()
         return
     # Send list of files to be processed
     all_files_str = "\n- ".join(files)
@@ -133,7 +133,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         if event.is_set():
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
-            # file_utils.clear_temp()
+            file_utils.clear_temp()
             await ctx.send("Extraction has been cancelled.")
             logger.info("Extraction for download with GID: %s has been cancelled.", gid)
             return
@@ -207,7 +207,7 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
             if extraction_cancel_event.is_set():
                 aria2_service.remove_all_downloads(force=True)
                 file_utils.clear_current_dl()
-                # file_utils.clear_temp()
+                file_utils.clear_temp()
                 await message.edit(content="Download has been cancelled.")
                 logger.info("Download with GID: %s has been cancelled.", gid)
                 return False
@@ -227,14 +227,14 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
                 logger.error("Download failed or incomplete. Current status: %s", status['status'])
                 aria2_service.remove_all_downloads(force=True)
                 file_utils.clear_current_dl()
-                # file_utils.clear_temp()
+                file_utils.clear_temp()
                 return False
         except Exception as e:
             await ctx.send(f"An error occurred while verifying download: {e}")
             logger.error("An error occurred while verifying download: %s", e)
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
-            # file_utils.clear_temp()
+            file_utils.clear_temp()
             return False
         #endregion
 
@@ -245,7 +245,7 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
                 if extraction_cancel_event.is_set():
                     aria2_service.remove_all_downloads(force=True)
                     file_utils.clear_current_dl()
-                    # file_utils.clear_temp()
+                    file_utils.clear_temp()
                     await message.edit(content="Torrent download has been cancelled.")
                     logger.info("Torrent download with GID: %s has been cancelled.", gid)
                     return False
@@ -259,7 +259,7 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
                     if extraction_cancel_event.is_set():
                         aria2_service.remove_all_downloads(force=True)
                         file_utils.clear_current_dl()
-                        # file_utils.clear_temp()
+                        file_utils.clear_temp()
                         await message.edit(content="Download has been cancelled.")
                         logger.info("Download with GID: %s has been cancelled.", gid)
                         return False
@@ -276,7 +276,7 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
                 logger.error("An error occurred while downloading file: %s", e)
                 aria2_service.remove_all_downloads(force=True)
                 file_utils.clear_current_dl()
-                # file_utils.clear_temp()
+                file_utils.clear_temp()
                 return False
         #endregion
 

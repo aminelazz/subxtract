@@ -36,7 +36,7 @@ class Extractor(Extension):
         except Exception as e:
             logger.error("Error removing downloads during cleanup: %s", e)
         file_utils.clear_current_dl()
-        # file_utils.clear_temp()
+        file_utils.clear_temp()
         #endregion
 
 def setup(bot):
