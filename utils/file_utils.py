@@ -77,7 +77,7 @@ def get_temp_files(path: Path) -> dict[str, list[str]] | None:
         dict | None: A dictionary containing full paths and relative filenames of the files found,
                       or None if the path does not exist.
     """
-    file_list = []
+    file_list: list[str] = []
     if not path.exists():
         return None
 
