@@ -94,7 +94,7 @@ ARIA2_RPC_SECRET=
 TEMP_DIR=./data/temp
 DOWNLOAD_DIR=./data/temp/downloads
 EXTRACT_DIR=./data/temp/extracted
-SCHEMAS_DIR=./data/schemas
+SCHEMAS_DIR=./schemas
 
 # Data Files
 ALLOWED_CHANNELS_FILE=./data/allowed_channels.json
