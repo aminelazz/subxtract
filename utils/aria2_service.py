@@ -28,7 +28,7 @@ def check_connection() -> bool:
                 "params": [f"token:{ARIA2_RPC_SECRET}"]
             }
         )
-        c = requests.post("http://localhost:6800/jsonrpc", data=jsonreq, timeout=20)
+        c = requests.post(f"{ARIA2_RPC_HOST}:{ARIA2_RPC_PORT}/jsonrpc", data=jsonreq, timeout=20)
         if c.status_code != 200:
             logger.error("Failed to connect to Aria2 RPC server: HTTP %d", c.status_code)
             return False
