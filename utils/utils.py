@@ -132,6 +132,9 @@ async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool |
         )
         if status["status"] == "complete":
             logger.info("Download completed successfully.")
+            await message.edit(
+                content=f"Download completed successfully!"
+            )
             return True
         await asyncio.sleep(2)
     except Exception as e:
