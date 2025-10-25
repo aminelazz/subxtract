@@ -2,13 +2,14 @@
 
 import asyncio
 import os
-import logging
 from pathlib import Path
 from typing import Literal
 
+import requests
 from interactions import File
 from interactions import Message, SlashContext
 
+from config import DISCORD_TOKEN, APP_ID
 from utils import aria2_service, file_utils, mkv_service
 from utils.controller import extraction_cancel_event
 from utils.logger import get_logger
@@ -44,10 +45,48 @@ def get_merge_commands(files: list[Path], type: Literal["subs", "attachments"]) 
     unix_command = f'cat {separated_by_space} > {type}.zip'
 
     return (
-        f"To merge the {type} into a single zip file, use the following commands:\n\n"
+        f"To merge the {type} into a single zip file, use the following commands:\n"
         f"```Windows:\n{windows_command}\n\n"
-        f"Unix:\n{unix_command}```"
+        f"Linux/Unix:\n{unix_command}```"
     )
+
+# Get Bot infos
+def get_bot_infos():
+    """Get bot informations through GET request"""
+    bot_token = DISCORD_TOKEN
+    app_id = APP_ID
+
+    # URL to make the GET request to
+    url = f'https://discord.com/api/v9/applications/{app_id}'
+
+    # Construct the headers with the authorization token
+    headers = {
+        'Authorization': f'Bot {bot_token}'
+    }
+
+    # Perform the GET request with the headers
+    response = requests.get(url, headers=headers, timeout=20).json()
+
+    return response
+
+# Get commands
+def get_commands():
+    """Get commands through GET request"""
+    bot_token = DISCORD_TOKEN
+    app_id = APP_ID
+
+    # URL to make the GET request to
+    url = f'https://discord.com/api/v9/applications/{app_id}/commands'
+
+    # Construct the headers with the authorization token
+    headers = {
+        'Authorization': f'Bot {bot_token}'
+    }
+
+    # Perform the GET request with the headers
+    response = requests.get(url, headers=headers, timeout=20).json()
+
+    return response
 
 # Check if the command has been run in the allowed channel
 async def is_allowed_channel(ctx: SlashContext) -> bool:
@@ -141,15 +180,15 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         message = await ctx.send(f"Processing file ({i}/{len(full_paths)})...")
         try:
             mkv_service_class = mkv_service.MKVService()
-            mkv_info = mkv_service_class.get_mkv_info(file)
-            mkv_info_path = file_utils.save_file_to_extract_dir(mkv_info.encode("utf-8"), "mkv_info.txt")
+            mediainfo = mkv_service_class.get_mediainfo(file)
+            mediainfo_path = file_utils.save_file_to_extract_dir(mediainfo.encode("utf-8"), "mediainfo.txt")
             zipped_subs = mkv_service_class.extract_subtitles(file)
             zipped_attachments = mkv_service_class.extract_attachments(file)
             chapters = mkv_service_class.extract_chapters(file)
 
             # Files' paths to send
             files=[
-                mkv_info_path,
+                mediainfo_path,
                 chapters.get("path") if chapters else None
             ]
             files.extend(zipped_subs.paths if zipped_subs else [])

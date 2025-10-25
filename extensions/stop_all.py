@@ -10,11 +10,11 @@ from utils.utils import is_allowed_channel
 logger = get_logger("stop_all")
 
 class StopAll(Extension):
-    """Extension for stopping all processes."""
+    """Extension for stopping all processes (if initiated by the same user)."""
     @slash_command()
     @check(is_allowed_channel)
     async def stop_all(self, ctx: SlashContext):
-        """Stops all processes."""
+        """Stops all processes (if initiated by the same user)."""
         await ctx.defer()
         try:
             current_dl = file_utils.load_current_dl()

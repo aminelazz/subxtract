@@ -84,6 +84,7 @@ Rename `.env.example` file to `.env` and edit it:
 ```env
 # Discord Bot Token (required)
 DISCORD_TOKEN=your_discord_bot_token_here
+APP_ID=your_bot_app_id_here
 
 # Aria2 RPC Configuration
 ARIA2_RPC_HOST=http://localhost
@@ -225,12 +226,13 @@ subxtract/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DISCORD_TOKEN` | Discord bot token | *Required* |
+| `APP_ID` | APP ID | *Required* |
 | `ARIA2_RPC_HOST` | Aria2 RPC host | `http://localhost` |
 | `ARIA2_RPC_PORT` | Aria2 RPC port | `6800` |
-| `ARIA2_RPC_SECRET` | Aria2 RPC secret token | *(empty)* |
-| `TEMP_DIR` | Temporary files directory | `./temp` |
-| `DOWNLOAD_DIR` | Download storage directory | `./temp/downloads` |
-| `EXTRACT_DIR` | Extraction output directory | `./temp/extracted` |
+| `ARIA2_RPC_SECRET` | Aria2 RPC secret token | `YOUR_RPC_SECRET` |
+| `TEMP_DIR` | Temporary files directory | `./data/temp` |
+| `DOWNLOAD_DIR` | Download storage directory | `./data/temp/downloads` |
+| `EXTRACT_DIR` | Extraction output directory | `./data/temp/extracted` |
 | `SCHEMAS_DIR` | JSON schemas directory | `./schemas` |
 | `ALLOWED_CHANNELS_FILE` | Channel permissions file | `./data/allowed_channels.json` |
 | `CURRENT_DL_FILE` | Current download state file | `./data/current_download.json` |

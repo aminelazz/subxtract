@@ -41,7 +41,7 @@ class MKVService:
     """Service class for MKV file operations."""
 
     @staticmethod
-    def get_mkv_info(filepath: str):
+    def get_mediainfo(filepath: str):
         """Retrieves information about the MKV file."""
         cmd = ["mediainfo", filepath]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
