@@ -91,10 +91,10 @@ ARIA2_RPC_PORT=6800
 ARIA2_RPC_SECRET=
 
 # Directory Configuration
-TEMP_DIR=./temp
-DOWNLOAD_DIR=./temp/downloads
-EXTRACT_DIR=./temp/extracted
-SCHEMAS_DIR=./schemas
+TEMP_DIR=./data/temp
+DOWNLOAD_DIR=./data/temp/downloads
+EXTRACT_DIR=./data/temp/extracted
+SCHEMAS_DIR=./data/schemas
 
 # Data Files
 ALLOWED_CHANNELS_FILE=./data/allowed_channels.json

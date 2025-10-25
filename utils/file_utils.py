@@ -5,9 +5,9 @@ from pathlib import Path
 import shutil
 import json
 
-from config import EXTRACT_DIR, DOWNLOAD_DIR, ALLOWED_CHANNELS_FILE, CURRENT_DL_FILE, QUEUE_FILE
+from config import TEMP_DIR, EXTRACT_DIR, DOWNLOAD_DIR
+from config import ALLOWED_CHANNELS_FILE, CURRENT_DL_FILE, QUEUE_FILE
 from utils.logger import get_logger
-from utils import utils
 
 # Configure logging
 logger = get_logger("file_utils")
@@ -60,7 +60,7 @@ class QueueObject(dict):
     user_id: str
     links: list[str]
 
-def clear_temp(path: Path = Path("./temp")):
+def clear_temp(path: Path = Path(TEMP_DIR)):
     """Clears the temporary directory."""
     if path.exists():
         shutil.rmtree(path)
