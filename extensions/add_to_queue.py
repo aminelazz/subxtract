@@ -1,4 +1,4 @@
-"""StopAll extension for stopping all processes."""
+"""AddToQueue extension for adding links to the download queue."""
 
 from interactions import Extension, SlashContext, slash_command, check, slash_option, OptionType
 from utils import file_utils
@@ -26,7 +26,7 @@ class AddToQueue(Extension):
         if not links_list:
             await ctx.send("No valid links provided.")
             return
-        
+
         added = file_utils.save_queue(str(ctx.author.id), links_list)
         await ctx.send(f"Added {added} links to your download queue.")
         logger.info("User %s added %d links to the queue.", str(ctx.author.id), added)

@@ -9,11 +9,9 @@ from config import TEMP_DIR, EXTRACT_DIR, DOWNLOAD_DIR
 from config import ALLOWED_CHANNELS_FILE, CURRENT_DL_FILE, QUEUE_FILE
 from utils.logger import get_logger
 
-# Configure logging
-logger = get_logger("file_utils")
-
 # Define return type for allowed channels
-# will be like this: {"allowed_channels": [{"guild": guild_id, "channels": [channel_id1, channel_id2]}, ...]}
+# will be like this:
+# {"allowed_channels": [{"guild": guild_id, "channels": [channel_id1, channel_id2]}, ...]}
 class AllowedChannelsType(dict):
     """Type definition for allowed channels data structure."""
     allowed_channels: list["GuildObject"]
@@ -81,7 +79,7 @@ def get_temp_files(path: Path) -> dict[str, list[str]] | None:
     if not path.exists():
         return None
 
-    for root, dirs, files in os.walk(path):
+    for root, _dirs, files in os.walk(path):
         for filename in files:
             full_path = os.path.join(root, filename)
             file_list.append(full_path)
@@ -206,6 +204,9 @@ def remove_allowed_channel(guild_id: str, channel_id: str, file_path: Path = Pat
 
 def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
     """Loads the download queue from a file."""
+    # Configure logging
+    logger = get_logger("load_queue_utils")
+
     try:
         if not file_path.exists():
             return None
@@ -219,7 +220,7 @@ def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
     except Exception as e:
         logger.error("Unexpected error loading queue: %s", e)
         return None
-    
+
 def get_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)) -> QueueObject | None:
     """Retrieves a user's queue from the download queue file."""
     data = load_queue(file_path)
@@ -232,6 +233,9 @@ def get_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)) -> QueueObj
 
 def save_queue(user_id: str, links: list[str], file_path: Path = Path(QUEUE_FILE)) -> int:
     """Saves the download queue to a file."""
+    # Configure logging
+    logger = get_logger("save_queue_utils")
+
     # Load existing data
     existing_data = load_queue(file_path)
 
@@ -293,7 +297,7 @@ def remove_from_queue(user_id: str, links: list[str], file_path: Path = Path(QUE
     # Save the updated data back to the file
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    
+
     return difference
 
 def clear_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)):
@@ -311,6 +315,9 @@ def clear_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)):
 
 def create_split_zip(zip_path: Path, part_size: int = 10 * 1024 * 1024) -> list[Path]:
     """Creates a split zip file from the specified zip file."""
+    # Configure logging
+    logger = get_logger("create_split_zip")
+
     if not zip_path.exists():
         logger.error("Zip file %s does not exist.", str(zip_path))
         return []

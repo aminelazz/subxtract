@@ -1,4 +1,4 @@
-"""Channel disallow extension for allowing specific channels."""
+"""DisallowChannel extension for disallowing specific channels."""
 
 from interactions import Extension, slash_command, SlashContext, Permissions
 from utils import file_utils
@@ -21,7 +21,11 @@ class DisallowChannel(Extension):
                 channel_id=str(ctx.channel_id)
             )
             await ctx.send("This channel has been disallowed from using the bot.")
-            logger.info("\"%s\" Channel disallowed in \"%s\"", ctx.channel.name, ctx.guild.name if ctx.guild else "DM")
+            logger.info(
+                '"%s" Channel disallowed in "%s"',
+                ctx.channel.name,
+                ctx.guild.name if ctx.guild else "DM"
+            )
         except Exception as e:
             await ctx.send(f"An error occurred while disallowing this channel: {e}")
             logger.error("Error disallowing channel %s: %s", ctx.channel_id, e)

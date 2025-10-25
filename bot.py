@@ -20,7 +20,12 @@ async def on_startup():
 
     for guild in bot.guilds:
         logger.info("Connected to guild: %s (id: %s)", guild.name, guild.id)
-    await bot.change_presence(activity=Activity(type=ActivityType.CUSTOM, name=":smiley: I am cool!"))
+    await bot.change_presence(
+        activity=Activity(
+            name="SubXtract | /extract",
+            type=ActivityType.WATCHING
+        )
+    )
 
 # Load all extensions in the extensions directory
 extension_names = [m.name for m in pkgutil.iter_modules(["extensions"], prefix="extensions.")]

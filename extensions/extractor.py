@@ -1,4 +1,4 @@
-"""Downloader extension for managing downloads via Aria2."""
+"""Extractor extension for managing downloads via Aria2 and MKV extraction."""
 
 from interactions import Extension, SlashContext, OptionType
 from interactions import slash_command, slash_option, check
@@ -19,7 +19,7 @@ class Extractor(Extension):
         opt_type=OptionType.STRING,
     )
     async def extract(self, ctx: SlashContext, url: str):
-        """Downloads using Aria2, Extracts MKV info, subs, attachments, and chapters, then uploads the results."""
+        """Downloads using Aria2 (magnet/torrent/ddl links), Extracts MKV tracks, then uploads them."""
         await ctx.defer()
 
         # Start download and extraction process
@@ -28,7 +28,9 @@ class Extractor(Extension):
         # Check if completed successfully
         if completed is True:
             logger.info("Extraction process completed for all files.")
-            await ctx.send(f"{ctx.author.mention}, Extraction process completed for all files, Have Fun :grin:")
+            await ctx.send(
+                f"{ctx.author.mention}, Extraction process completed for all files, Have Fun :grin:"
+            )
 
         #region ---- Clean up ----
         try:

@@ -36,16 +36,16 @@ def remove_duplicates_preserve_order(links: list[str]) -> list[str]:
             unique_links.append(link.strip())
     return unique_links
 
-def get_merge_commands(files: list[Path], type: Literal["subs", "attachments"]) -> str:
+def get_merge_commands(files: list[Path], track_type: Literal["subs", "attachments"]) -> str:
     """Generates mkvmerge commands for merging subtitles and attachments."""
     separated_by_plus_sign = " + ".join([f'"{os.path.basename(file)}"' for file in files])
     separated_by_space = " ".join([f'"{os.path.basename(file)}"' for file in files])
 
-    windows_command = f'copy /b {separated_by_plus_sign} {type}.zip'
-    unix_command = f'cat {separated_by_space} > {type}.zip'
+    windows_command = f'copy /b {separated_by_plus_sign} {track_type}.zip'
+    unix_command = f'cat {separated_by_space} > {track_type}.zip'
 
     return (
-        f"To merge the {type} into a single zip file, use the following commands:\n"
+        f"To merge the {track_type} into a single zip file, use the following commands:\n"
         f"```Windows:\n{windows_command}\n\n"
         f"Linux/Unix:\n{unix_command}```"
     )
@@ -133,7 +133,7 @@ async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool |
         if status["status"] == "complete":
             logger.info("Download completed successfully.")
             await message.edit(
-                content=f"Download completed successfully!"
+                content="Download completed successfully!"
             )
             return True
         await asyncio.sleep(2)
@@ -305,7 +305,7 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
                         await message.edit(content="Download has been cancelled.")
                         logger.info("Download with GID: %s has been cancelled.", gid)
                         return False
-                    
+
                     # Check if complete
                     completed = await download_file(gid, ctx, message)
                     if completed is True:

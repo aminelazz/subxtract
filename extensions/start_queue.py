@@ -1,7 +1,7 @@
-"""StartQueue extension for managing downloads via Aria2."""
+"""StartQueue extension for starting the download queue."""
 
-from interactions import Extension, SlashContext, OptionType
-from interactions import slash_command, slash_option, check
+from interactions import Extension, SlashContext
+from interactions import slash_command, check
 from utils import aria2_service, utils, file_utils
 from utils.logger import get_logger
 from utils.controller import extraction_cancel_event
@@ -10,24 +10,32 @@ from utils.controller import extraction_cancel_event
 logger = get_logger("start_queue")
 
 class StartQueue(Extension):
-    """Extension for downloading, managing MKV extraction and upload for multiple links in a queue."""
+    """
+    Extension for downloading, managing MKV extraction and upload for multiple links in a queue.
+    """
     @slash_command()
     @check(utils.is_allowed_channel)
     async def start_queue(self, ctx: SlashContext):
-        """Downloads , Extracts, then uploads the results from multiple links in the queue."""
+        """Downloads, Extracts, then uploads the results from multiple links in the queue."""
         await ctx.defer()
 
         # Get the queue
         queue = file_utils.get_user_queue(str(ctx.author.id))
 
         if not queue or not queue.links:
-            await ctx.send(f"{ctx.author.mention}, Your queue is empty. Please add links to the queue before starting the download.")
+            await ctx.send(
+                f"{ctx.author.mention}, "
+                f"Your queue is empty. Please add links to the queue before starting the download."
+            )
             return
 
         links = queue.links.copy()
         links_size = len(links)
 
-        logger.info("Starting queue processing for user %s with %d links.", str(ctx.author.id), links_size)
+        logger.info(
+            "Starting queue processing for user %s with %d links.",
+            str(ctx.author.id), links_size
+        )
         await ctx.send(f"Starting the download and extraction process for {links_size} links.")
 
         i = 1
@@ -50,10 +58,19 @@ class StartQueue(Extension):
                 file_utils.clear_user_queue(str(ctx.author.id))
                 file_utils.save_queue(str(ctx.author.id), queue.links)
                 logger.info("Extraction process completed for (%d/%d) links.", i, links_size)
-                await ctx.send(f"{ctx.author.mention}, Extraction process completed for ({i}/{links_size}) links.\n{'Processing next link...' if i < links_size else ''}")
+                await ctx.send(
+                    f"{ctx.author.mention}, "
+                    f"Extraction process completed for ({i}/{links_size}) links.\n"
+                    f"{'Processing next link...' if i < links_size else ''}"
+                )
             else:
                 logger.error("Extraction process failed for URL: %s", url)
-                await ctx.send(f"{ctx.author.mention}, Extraction process failed for the link:\n{url}\n\n{'Skipping to the next link...' if i < links_size else ''}")
+                await ctx.send(
+                    f"{ctx.author.mention}, "
+                    f"Extraction process failed for the link:\n"
+                    f"{url}\n\n"
+                    f"{'Skipping to the next link...' if i < links_size else ''}"
+                )
 
             # Clean up after each link
             try:

@@ -1,4 +1,4 @@
-"""Queue extension for managing user download queues."""
+"""Queue extension for showing user's queue."""
 
 from interactions import Extension, SlashContext, slash_command, check
 from utils import file_utils

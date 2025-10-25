@@ -1,4 +1,4 @@
-"""Status extension for managing current downloads."""
+"""Status extension for checking current download status."""
 
 from interactions import Extension, slash_command, check, SlashContext
 from utils import file_utils
@@ -9,7 +9,7 @@ from utils.utils import is_allowed_channel
 logger = get_logger("status")
 
 class Status(Extension):
-    """Extension for managing current download status."""
+    """Extension for checking current download status."""
     @slash_command()
     @check(is_allowed_channel)
     async def status(self, ctx: SlashContext):
@@ -30,7 +30,10 @@ class Status(Extension):
             if ctx.guild and str(ctx.guild.id) == str(guild_id):
                 await ctx.send(f"{ctx.author.mention}, You already have a download in progress.")
             else:
-                await ctx.send(f"{ctx.author.mention}, You have a download in progress in another server.")
+                await ctx.send(
+                    f"{ctx.author.mention}, "
+                    f"You have a download in progress in another server."
+                )
         # If the command is invoked by a different user
         else:
             user = await self.bot.fetch_user(int(user_id)) if user_id else None
@@ -39,7 +42,10 @@ class Status(Extension):
                 if str(ctx.guild.id) == str(guild_id):
                     await ctx.send(f"{user.mention} has a download in progress.")
                 elif str(ctx.guild.id) != str(guild_id):
-                    await ctx.send(f"{ctx.author.mention}, Another user has a download in progress in another server.")
+                    await ctx.send(
+                        f"{ctx.author.mention}, "
+                        f"Another user has a download in progress in another server."
+                    )
             else:
                 await ctx.send("A download is currently in progress by another user.")
 
