@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -104,6 +105,26 @@ async def is_allowed_channel(ctx: SlashContext) -> bool:
     if guild_obj is not None:
         return channel_id in guild_obj.channels
     return False
+
+def get_nyaa_torrent_link(url: str) -> str | None:
+    """Gets the direct torrent link from a nyaa.si URL."""
+    # Configure logging
+    logger = get_logger("get_nyaa_torrent_link")
+
+    if "nyaa.si" not in url:
+        return None
+
+    try:
+        match = re.match(r'https?://nyaa\.si/view/(?P<id>\d+)', url)
+        if match:
+            torrent_id = match.group("id")
+            logger.info("Successfully got torrent link from nyaa.si: %s", url)
+            return f"https://nyaa.si/download/{torrent_id}.torrent"
+    except Exception as e:
+        logger.error("An error occurred while fetching torrent link from nyaa.si: %s", e)
+        return None
+
+    return None
 
 async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool | None:
     """Downloads a file and tracks its progress."""
@@ -247,6 +268,11 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
             logger.warning("Download attempt rejected while another download is in progress.")
             return False
         #endregion
+
+        # Try to get direct torrent link from nyaa.si
+        torrent_link = get_nyaa_torrent_link(url)
+        if torrent_link:
+            url = torrent_link
 
         #region ---- Stage 1: Download ----
         message = await ctx.send("Starting download...")
