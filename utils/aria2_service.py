@@ -71,6 +71,7 @@ def track_progress(gid: str):
             "progress": download.progress_string(),
             "downloaded_size": download.completed_length_string(),
             "full_size": download.total_length_string(),
+            "full_size_bytes": download.total_length,
             "status": download.status,
             "speed": download.download_speed_string(),
             "seeders": download.num_seeders if isinstance(download, aria2p.BitTorrent) else "N/A",

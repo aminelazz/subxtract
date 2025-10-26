@@ -117,6 +117,18 @@ async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool |
             status = next(progress)
         except StopIteration:
             return True
+        
+        # Check for file size limit
+        if status["full_size_bytes"] > 10 * 1024 * 1024 * 1024: # More than 10 GB
+            aria2_service.remove_all_downloads(force=True)
+            file_utils.clear_current_dl()
+            file_utils.clear_temp()
+            await message.edit(
+                content="Error: The file size exceeds 10GB. Please download smaller files."
+            )
+            logger.error("The file size exceeds 10GB for GID: %s", gid)
+            return False
+
         # Check for errors in status
         if status["status"] == "error":
             await message.edit(
