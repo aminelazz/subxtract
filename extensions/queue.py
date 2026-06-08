@@ -25,10 +25,20 @@ class Queue(Extension):
             await ctx.send("Your download queue is empty.")
             return
 
-        user_queue_str = "\n- ".join(user_queue.links)
+        # Format queue items with their extraction types
+        queue_items_str = ""
+        for idx, item in enumerate(user_queue.links, 1):
+            if isinstance(item, dict):
+                link = item.get("link", item)
+                extraction_type = item.get("type", "all_without_audio")
+            else:
+                link = item
+                extraction_type = "all_without_audio"
+            queue_items_str += f"\n{idx}. **{extraction_type}**: {link}"
+        
         await ctx.send(
-            f"Your download queue:\n"
-            f"```- {user_queue_str}```"
+            f"Your download queue ({len(user_queue.links)} items):"
+            f"```{queue_items_str}```"
         )
 
 
