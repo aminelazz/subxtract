@@ -37,8 +37,8 @@ def remove_duplicates_preserve_order(links: list[str]) -> list[str]:
             unique_links.append(link.strip())
     return unique_links
 
-def get_merge_commands(files: list[Path], track_type: Literal["subs", "attachments"]) -> str:
-    """Generates mkvmerge commands for merging subtitles and attachments."""
+def get_merge_commands(files: list[Path], track_type: Literal["subs", "attachments", "audio"]) -> str:
+    """Generates commands for merging zip files (subtitles, attachments, or audio)."""
     separated_by_plus_sign = " + ".join([f'"{os.path.basename(file)}"' for file in files])
     separated_by_space = " ".join([f'"{os.path.basename(file)}"' for file in files])
 
@@ -178,8 +178,8 @@ async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool |
         file_utils.clear_temp()
         return False
 
-async def extract_from_download(gid: str, ctx: SlashContext, message: Message, dir_path: Path, event = extraction_cancel_event) -> str | None:
-    """Extracts files from the downloaded archive."""
+async def extract_from_download(gid: str, ctx: SlashContext, message: Message, dir_path: Path, extraction_type: str = "all", event = extraction_cancel_event) -> str | None:
+    """Extracts files from the downloaded archive based on extraction type."""
     # Configure logging
     logger = get_logger("extract_from_download")
 
@@ -216,11 +216,30 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         message = await ctx.send(f"Processing file ({i}/{len(full_paths)})...")
         try:
             mkv_service_class = mkv_service.MKVService()
+            
+            # Initialize extraction results
+            zipped_subs = None
+            zipped_attachments = None
+            zipped_audio = None
+            chapters = None
+            mediainfo_path = None
+
+            # Always save mediainfo
             mediainfo = mkv_service_class.get_mediainfo(file)
             mediainfo_path = file_utils.save_file_to_extract_dir(mediainfo.encode("utf-8"), "mediainfo.txt")
-            zipped_subs = mkv_service_class.extract_subtitles(file)
-            zipped_attachments = mkv_service_class.extract_attachments(file)
-            chapters = mkv_service_class.extract_chapters(file)
+
+            # Extract based on type
+            if extraction_type in ["subtitles", "all", "all_without_audio"]:
+                zipped_subs = mkv_service_class.extract_subtitles(file)
+            
+            if extraction_type in ["attachments", "all", "all_without_audio"]:
+                zipped_attachments = mkv_service_class.extract_attachments(file)
+            
+            if extraction_type in ["chapters", "all", "all_without_audio"]:
+                chapters = mkv_service_class.extract_chapters(file)
+            
+            if extraction_type in ["audio", "all"]:
+                zipped_audio = mkv_service_class.extract_audio(file)
 
             # Files' paths to send
             files=[
@@ -229,16 +248,42 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             ]
             files.extend(zipped_subs.paths if zipped_subs else [])
             files.extend(zipped_attachments.paths if zipped_attachments else [])
+            files.extend(zipped_audio.paths if zipped_audio else [])
+            
             logger.info("Finished processing MKV file, Uploading results...")
             await message.edit(content="Uploading results...")
+            
+            # Build the summary message
+            summary = f"`{os.path.basename(file)}`\n```"
+            
+            if extraction_type in ["subtitles", "all", "all_without_audio"]:
+                summary += f"Subtitles: {zipped_subs.count if zipped_subs else 0}\n"
+            
+            if extraction_type in ["attachments", "all", "all_without_audio"]:
+                summary += f"Attachments: {zipped_attachments.count if zipped_attachments else 0}\n"
+            
+            if extraction_type in ["chapters", "all", "all_without_audio"]:
+                summary += f"Chapters: {chapters.get('count') if chapters else 0}\n"
+            
+            if extraction_type in ["audio", "all"]:
+                summary += f"Audio Tracks: {zipped_audio.count if zipped_audio else 0}\n"
+            
+            summary += "```"
+            
+            # Build merge commands if needed
+            merge_commands = ""
+            
+            if extraction_type in ["subtitles", "all", "all_without_audio"] and zipped_subs and len(zipped_subs.paths) > 1:
+                merge_commands += f"{get_merge_commands(zipped_subs.paths, 'subs')}\n"
+            
+            if extraction_type in ["attachments", "all", "all_without_audio"] and zipped_attachments and len(zipped_attachments.paths) > 1:
+                merge_commands += f"{get_merge_commands(zipped_attachments.paths, 'attachments')}\n"
+            
+            if extraction_type in ["audio", "all"] and zipped_audio and len(zipped_audio.paths) > 1:
+                merge_commands += f"{get_merge_commands(zipped_audio.paths, 'audio')}\n"
+            
             await message.edit(
-                content=
-                    f"`{os.path.basename(file)}`\n"
-                    f"```Subtitles: {zipped_subs.count if zipped_subs else 0}\n"
-                    f"Attachments: {zipped_attachments.count if zipped_attachments else 0}\n"
-                    f"Chapters: {chapters.get('count') if chapters else 0}```\n"
-                    f"{get_merge_commands(zipped_subs.paths, 'subs') if zipped_subs and len(zipped_subs.paths) > 1 else ''}\n"
-                    f"{get_merge_commands(zipped_attachments.paths, 'attachments') if zipped_attachments and len(zipped_attachments.paths) > 1 else ''}",
+                content=summary + merge_commands,
                 files=[File(file=f, file_name=os.path.basename(f)) for f in files if f is not None]
             )
             logger.info("Finished upload results for: %s", os.path.basename(file))
@@ -248,7 +293,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             continue
         file_utils.clear_extract_dir()
 
-async def download_and_extract(ctx: SlashContext, url: str) -> bool:
+async def download_and_extract(ctx: SlashContext, url: str, extraction_type: str = "all") -> bool:
     """Combined download and extraction process."""
     # Reset cancellation event
     extraction_cancel_event.clear()
@@ -366,7 +411,7 @@ async def download_and_extract(ctx: SlashContext, url: str) -> bool:
         #endregion
 
         #region ---- Stage 2: Extraction ----
-        await extract_from_download(gid=gid, ctx=ctx, message=message, dir_path=dir_path)
+        await extract_from_download(gid=gid, ctx=ctx, message=message, dir_path=dir_path, extraction_type=extraction_type)
         return True
     except Exception as e:
         await ctx.send(f"An unexpected error occurred: {e}")
