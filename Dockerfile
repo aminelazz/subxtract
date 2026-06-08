@@ -13,4 +13,4 @@ COPY . .
 
 EXPOSE 6800
 
-CMD ["sh", "-c", "aria2c --conf-path=./config/aria2.conf & python3.10 ./bot.py"]
+CMD ["sh", "-c", "aria2c --conf-path=./config/aria2.conf & sleep 5 && python3.10 ./bot.py"]
