@@ -17,8 +17,8 @@ class StartQueue(Extension):
     @check(utils.is_allowed_channel)
     @slash_option(
         name="type",
-        description="Choose what to extract from all MKV files in the queue. Defaults to queue item's configured type.",
-        required=False,
+        description="Choose what to extract from all MKV files in the queue.",
+        required=True,
         opt_type=OptionType.STRING,
         choices=[
             {"name": "Subtitles", "value": "subtitles"},
@@ -29,7 +29,7 @@ class StartQueue(Extension):
             {"name": "All (Without Audio)", "value": "all_without_audio"},
         ],
     )
-    async def start_queue(self, ctx: SlashContext, type: str = None):
+    async def start_queue(self, ctx: SlashContext, type: str):
         """Downloads, Extracts, then uploads the results from multiple links in the queue."""
         await ctx.defer()
 
@@ -55,9 +55,9 @@ class StartQueue(Extension):
         i = 1
         # Start download and extraction process
         for queue_item in queue_items:
-            # Extract link and type from queue item
+            # Extract link from queue item (supports both old string format and new dict format)
             url = queue_item.get("link", queue_item) if isinstance(queue_item, dict) else queue_item
-            extraction_type = type if type else queue_item.get("type", "all_without_audio") if isinstance(queue_item, dict) else "all_without_audio"
+            extraction_type = type  # Use selected type for all links
 
             # Check for cancellation
             if extraction_cancel_event.is_set():
@@ -67,7 +67,7 @@ class StartQueue(Extension):
                 await ctx.send(content="queue processing has been cancelled.")
                 break
 
-            logger.info("Starting download and extraction for URL: %s with type: %s", url, extraction_type)
+            logger.info("Starting download and extraction for URL: %s with extraction type: %s", url, extraction_type)
             completed = await utils.download_and_extract(ctx, url, extraction_type=extraction_type)
 
             # Check if completed successfully
