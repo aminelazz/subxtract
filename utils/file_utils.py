@@ -48,15 +48,48 @@ class CurrentDLObject(dict):
     user_id: str
     guild_id: str
 
+class QueueItem(dict):
+    """Type definition for a single queue item with link and extraction type."""
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Handle both old format (string) and new format (dict)
+        if isinstance(data.get("link"), dict):
+            self.link = data["link"].get("link", "")
+            self.type = data["link"].get("type", "all_without_audio")
+        else:
+            self.link = data.get("link", "")
+            self.type = data.get("type", "all_without_audio")
+
+    link: str
+    type: str
+
 class QueueObject(dict):
     """Type definition for queue object."""
     def __init__(self, **data):
         super().__init__(**data)
         self.user_id = data.get("user_id", "")
-        self.links = data.get("links", [])
+        # Convert links to new format if old format detected
+        raw_links = data.get("links", [])
+        self.links = self._normalize_links(raw_links)
 
     user_id: str
-    links: list[str]
+    links: list[dict]
+
+    @staticmethod
+    def _normalize_links(links: list) -> list[dict]:
+        """Converts links to new format {link, type} if needed."""
+        normalized = []
+        for item in links:
+            if isinstance(item, str):
+                # Old format: just a link string
+                normalized.append({"link": item, "type": "all_without_audio"})
+            elif isinstance(item, dict):
+                # New format: already a dict
+                normalized.append({
+                    "link": item.get("link", ""),
+                    "type": item.get("type", "all_without_audio")
+                })
+        return normalized
 
 def clear_temp(path: Path = Path(TEMP_DIR)):
     """Clears the temporary directory."""
@@ -231,10 +264,28 @@ def get_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)) -> QueueObj
     user_queue = next((item for item in data if item.user_id == user_id), None)
     return user_queue
 
-def save_queue(user_id: str, links: list[str], file_path: Path = Path(QUEUE_FILE)) -> int:
-    """Saves the download queue to a file."""
+def save_queue(user_id: str, links: list, file_path: Path = Path(QUEUE_FILE), extraction_type: str = "all_without_audio") -> int:
+    """Saves the download queue to a file.
+    
+    Args:
+        user_id: User ID
+        links: List of links (can be strings for backward compatibility) or list of dicts with {link, type}
+        file_path: Path to queue file
+        extraction_type: Default extraction type if links are strings
+    """
     # Configure logging
     logger = get_logger("save_queue_utils")
+
+    # Convert links to new format if needed
+    normalized_links = []
+    for link in links:
+        if isinstance(link, str):
+            normalized_links.append({"link": link, "type": extraction_type})
+        elif isinstance(link, dict):
+            normalized_links.append({
+                "link": link.get("link", ""),
+                "type": link.get("type", extraction_type)
+            })
 
     # Load existing data
     existing_data = load_queue(file_path)
@@ -242,8 +293,8 @@ def save_queue(user_id: str, links: list[str], file_path: Path = Path(QUEUE_FILE
     # Update or create new entry
     if existing_data is None:
         # No existing data, create new entry
-        data = [QueueObject(user_id=user_id, links=list(set(links)))]
-        added = len(links)
+        data = [QueueObject(user_id=user_id, links=normalized_links)]
+        added = len(normalized_links)
         logger.info("Creating new queue file with user %s and %d links.", user_id, added)
     else:
         # Update existing data
@@ -252,14 +303,16 @@ def save_queue(user_id: str, links: list[str], file_path: Path = Path(QUEUE_FILE
         user_queue = next((item for item in data if item.user_id == user_id), None)
         # If not found, create a new user queue
         if user_queue is None:
-            user_queue = QueueObject(user_id=user_id, links=list(set(links)))
+            user_queue = QueueObject(user_id=user_id, links=normalized_links)
             data.append(user_queue)
-            added = len(links)
+            added = len(normalized_links)
             logger.info("Adding new user %s to queue with %d links.", user_id, added)
-        # If found, update the links
+        # If found, update the links (avoid duplicates)
         else:
-            new_links = list(set(user_queue.links + links))
-            added = len(new_links) - len(user_queue.links)
+            existing_link_urls = {item["link"] for item in user_queue.links}
+            new_items = [item for item in normalized_links if item["link"] not in existing_link_urls]
+            new_links = user_queue.links + new_items
+            added = len(new_items)
             data = [item for item in data if item.user_id != user_id]  # Remove old entry
             user_queue = QueueObject(user_id=user_id, links=new_links) # Create updated entry
             data.append(user_queue)  # Add updated entry
@@ -283,11 +336,18 @@ def remove_from_queue(user_id: str, links: list[str], file_path: Path = Path(QUE
     # Remove the user's links from their queue
     user_queue = next((item for item in data if item.user_id == user_id), None)
     if user_queue is not None:
-        new_links: list[str] = list(set(user_queue.links) - set(links))
+        # Extract just the link URLs for comparison
+        links_to_remove = set(links)
+        new_links = [item for item in user_queue.links if item.get("link", item) not in links_to_remove]
         difference = len(user_queue.links) - len(new_links)
+        
         # If the user's queue is empty, remove it
         if not new_links:
             data.remove(user_queue)
+            # Save and return
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            return difference
 
         # Update the user's queue in the data
         data = [item for item in data if item.user_id != user_id]  # Remove old entry
