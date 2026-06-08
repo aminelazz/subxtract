@@ -18,12 +18,25 @@ class Extractor(Extension):
         required=True,
         opt_type=OptionType.STRING,
     )
-    async def extract(self, ctx: SlashContext, url: str):
+    @slash_option(
+        name="type",
+        description="Choose what to extract from the MKV file.",
+        required=True,
+        opt_type=OptionType.STRING,
+        choices=[
+            {"name": "Subtitles", "value": "subtitles"},
+            {"name": "Attachments", "value": "attachments"},
+            {"name": "Chapters", "value": "chapters"},
+            {"name": "Audio", "value": "audio"},
+            {"name": "All (Without Audio)", "value": "all_without_audio"},
+        ],
+    )
+    async def extract(self, ctx: SlashContext, url: str, type: str):
         """Downloads using Aria2 (magnet/torrent/ddl links), Extracts MKV tracks, then uploads them."""
         await ctx.defer()
 
         # Start download and extraction process
-        completed = await utils.download_and_extract(ctx, url)
+        completed = await utils.download_and_extract(ctx, url, extraction_type=type)
 
         # Check if completed successfully
         if completed is True:
