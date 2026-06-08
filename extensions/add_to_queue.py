@@ -18,21 +18,7 @@ class AddToQueue(Extension):
         required=True,
         opt_type=OptionType.STRING,
     )
-    @slash_option(
-        name="type",
-        description="Extraction type for these links (defaults to all_without_audio).",
-        required=False,
-        opt_type=OptionType.STRING,
-        choices=[
-            {"name": "Subtitles", "value": "subtitles"},
-            {"name": "Attachments", "value": "attachments"},
-            {"name": "Chapters", "value": "chapters"},
-            {"name": "Audio", "value": "audio"},
-            {"name": "All", "value": "all"},
-            {"name": "All (Without Audio)", "value": "all_without_audio"},
-        ],
-    )
-    async def add_to_queue(self, ctx: SlashContext, links: str, type: str = "all_without_audio"):
+    async def add_to_queue(self, ctx: SlashContext, links: str):
         """Adds links to the download queue, separated by commas (,)."""
         await ctx.defer()
         # try:
@@ -41,9 +27,9 @@ class AddToQueue(Extension):
             await ctx.send("No valid links provided.")
             return
 
-        added = file_utils.save_queue(str(ctx.author.id), links_list, extraction_type=type)
-        await ctx.send(f"Added {added} links to your download queue with extraction type: **{type}**.")
-        logger.info("User %s added %d links to the queue with type %s.", str(ctx.author.id), added, type)
+        added = file_utils.save_queue(str(ctx.author.id), links_list)
+        await ctx.send(f"Added {added} links to your download queue.")
+        logger.info("User %s added %d links to the queue.", str(ctx.author.id), added)
         # except Exception as e:
         #     await ctx.send(f"An error occurred while adding links to the queue: {e}")
         #     logger.error("Error adding links to the queue: %s", e)
