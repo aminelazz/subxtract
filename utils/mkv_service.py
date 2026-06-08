@@ -88,29 +88,37 @@ class MKVService:
             extracted_files = []
             for s_id in info.get("tracks", []):
                 if s_id.get("type") == "subtitles":
-                    subtitle_codec = s_id.get("codec", {})
-                    subtitle_language = s_id.get("properties", {}).get("language", "und")
+                    try:
+                        subtitle_codec = s_id.get("codec", "").strip()
+                        subtitle_language = s_id.get("properties", {}).get("language", "und")
 
-                    if subtitle_codec == "SubRip/SRT":
-                        extension = "srt"
-                    elif subtitle_codec == "S_TEXT/UTF8":
-                        extension = "srt"
-                    elif subtitle_codec == "SubStationAlpha":
-                        extension = "ass"
-                    else:
-                        extension = "txt"
+                        # Determine extension based on codec
+                        if subtitle_codec == "SubRip/SRT" or "srt" in subtitle_codec.lower():
+                            extension = "srt"
+                        elif subtitle_codec == "S_TEXT/UTF8" or "utf8" in subtitle_codec.lower():
+                            extension = "srt"
+                        elif subtitle_codec == "SubStationAlpha" or "ass" in subtitle_codec.lower():
+                            extension = "ass"
+                        else:
+                            extension = "txt"
 
-                    # Construct output path
-                    out_path = os.path.join(
-                        output_dir,
-                        f"subtitle_{s_id['id']}.{subtitle_language}.{extension}"
-                    )
+                        # Construct output path
+                        out_path = os.path.join(
+                            output_dir,
+                            f"subtitle_{s_id['id']}.{subtitle_language}.{extension}"
+                        )
 
-                    # Command to extract subtitle track
-                    subprocess.run(
-                        ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"], check=True
-                    )
-                    extracted_files.append(out_path)
+                        # Command to extract subtitle track
+                        subprocess.run(
+                            ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"], check=True
+                        )
+                        extracted_files.append(out_path)
+                    except subprocess.CalledProcessError as extract_error:
+                        logger.warning("Failed to extract subtitle track %s, skipping: %s", s_id.get("id"), extract_error)
+                        continue
+                    except Exception as item_error:
+                        logger.warning("Error processing subtitle track %s, skipping: %s", s_id.get("id"), item_error)
+                        continue
 
             if not extracted_files:
                 return None
@@ -167,28 +175,45 @@ class MKVService:
 
             extracted_files = []
             for a_id in info.get("attachments", []):
-                # Guess extension if not provided
-                if a_id.get("content_type") == "application/font-sfnt":
-                    extension = "ttf"
-                elif a_id.get("content_type") == "application/x-truetype-font":
-                    extension = "ttf"
-                elif a_id.get("content_type") == "font/ttf":
-                    extension = "ttf"
-                elif a_id.get("content_type") == "application/vnd.ms-opentype":
-                    extension = "otf"
-                elif a_id.get("content_type") == "font/otf":
-                    extension = "otf"
-                elif a_id.get("content_type") == "image/png":
-                    extension = "png"
-                elif a_id.get("content_type") == "image/jpeg":
-                    extension = "jpg"
-                else:
-                    extension = "bin"
-                # Guess attachment name if not provided
-                attachment_name = a_id.get("file_name", f"attachment_{a_id['id']}.{extension}")
-                out_path = os.path.join(output_dir, f"{attachment_name}")
-                subprocess.run(["mkvextract", filepath, "attachments", f"{a_id['id']}:{out_path}"], check=True)
-                extracted_files.append(out_path)
+                try:
+                    # Safely get content_type
+                    content_type = a_id.get("content_type", "").strip()
+                    
+                    # Guess extension if not provided
+                    if a_id.get("content_type") == "application/font-sfnt":
+                        extension = "ttf"
+                    elif a_id.get("content_type") == "application/x-truetype-font":
+                        extension = "ttf"
+                    elif a_id.get("content_type") == "font/ttf":
+                        extension = "ttf"
+                    elif a_id.get("content_type") == "application/vnd.ms-opentype":
+                        extension = "otf"
+                    elif a_id.get("content_type") == "font/otf":
+                        extension = "otf"
+                    elif a_id.get("content_type") == "image/png":
+                        extension = "png"
+                    elif a_id.get("content_type") == "image/jpeg":
+                        extension = "jpg"
+                    else:
+                        extension = "bin"
+                    
+                    # Get attachment name and sanitize it
+                    attachment_name = a_id.get("file_name", f"attachment_{a_id['id']}")
+                    
+                    # Ensure the filename is not too long by truncating if necessary
+                    name_without_ext = os.path.splitext(attachment_name)[0][:50]
+                    safe_filename = f"{name_without_ext}.{extension}"
+                    
+                    out_path = os.path.join(output_dir, safe_filename)
+                    
+                    subprocess.run(["mkvextract", filepath, "attachments", f"{a_id['id']}:{out_path}"], check=True)
+                    extracted_files.append(out_path)
+                except subprocess.CalledProcessError as extract_error:
+                    logger.warning("Failed to extract attachment %s, skipping: %s", a_id.get("id"), extract_error)
+                    continue
+                except Exception as item_error:
+                    logger.warning("Error processing attachment %s, skipping: %s", a_id.get("id"), item_error)
+                    continue
             
             if not extracted_files:
                 return None
@@ -256,6 +281,105 @@ class MKVService:
             }
         except subprocess.CalledProcessError as e:
             print(f"Error extracting chapters: {e}")
+            return None
+        except Exception as ex:
+            print(f"Unexpected error: {ex}")
+            return None
+
+    @staticmethod
+    def extract_audio(filepath: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
+        """
+        Extracts audio tracks from the MKV file to the specified output directory.
+        
+        Args:
+            filepath (str): The path to the MKV file.
+            output_dir (Path): The directory to save extracted audio.
+
+        Returns:
+            MKVExtractReturnType | None: A dictionary containing the paths of the extracted audio files and their count,
+            or None if extraction failed or no audio tracks were found.
+        """
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            info = MKVService.get_mkv_formatted_info(filepath)
+
+            if not info:
+                return None
+
+            extracted_files = []
+            audio_track_number = 1
+            
+            for a_id in info.get("tracks", []):
+                if a_id.get("type") == "audio":
+                    try:
+                        audio_codec = a_id.get("codec", "unknown").strip()
+                        audio_language = a_id.get("properties", {}).get("language", "und")
+                        
+                        # Determine file extension based on codec
+                        if audio_codec == "AAC" or "aac" in audio_codec.lower():
+                            extension = "aac"
+                        elif audio_codec == "MP3" or "mp3" in audio_codec.lower():
+                            extension = "mp3"
+                        elif audio_codec == "FLAC" or "flac" in audio_codec.lower():
+                            extension = "flac"
+                        elif audio_codec == "Opus" or "opus" in audio_codec.lower():
+                            extension = "opus"
+                        elif audio_codec == "Vorbis" or "vorbis" in audio_codec.lower():
+                            extension = "ogg"
+                        else:
+                            extension = "mka"  # Matroska Audio as fallback
+
+                        # Naming: single track as "audio", multiple tracks as "audio_2", "audio_3", etc.
+                        if audio_track_number == 1:
+                            audio_name = f"audio_{a_id['id']}.{audio_language}.{extension}"
+                        else:
+                            audio_name = f"audio_{audio_track_number}_{a_id['id']}.{audio_language}.{extension}"
+
+                        out_path = os.path.join(output_dir, audio_name)
+
+                        # Command to extract audio track
+                        subprocess.run(
+                            ["mkvextract", filepath, "tracks", f"{a_id['id']}:{out_path}"], check=True
+                        )
+                        extracted_files.append(out_path)
+                        audio_track_number += 1
+                    except subprocess.CalledProcessError as extract_error:
+                        logger.warning("Failed to extract audio track %s, skipping: %s", a_id.get("id"), extract_error)
+                        audio_track_number += 1
+                        continue
+                    except Exception as item_error:
+                        logger.warning("Error processing audio track %s, skipping: %s", a_id.get("id"), item_error)
+                        audio_track_number += 1
+                        continue
+
+            if not extracted_files:
+                return None
+
+            zip_file_path = os.path.join(output_dir, "audio.zip")
+            with zipfile.ZipFile(zip_file_path, "w") as zipf:
+                for file in extracted_files:
+                    zipf.write(file, arcname=os.path.basename(file))
+
+            # Check zip file size
+            zip_file_size = os.path.getsize(zip_file_path)
+            if zip_file_size > 10 * 1024 * 1024:  # 10 MB limit
+                logger.warning("Audio zip file exceeds 10 MB, splitting...")
+                try:
+                    split_files = create_split_zip(Path(zip_file_path), part_size=10 * 1024 * 1024)  # 10 MB parts
+                    return MKVExtractReturnType(
+                        paths=split_files,
+                        count=len(extracted_files)
+                    )
+                except Exception as split_ex:
+                    logger.error("Error splitting audio zip file: %s", split_ex)
+                    return None
+            
+            return MKVExtractReturnType(
+                paths=[Path(zip_file_path)],
+                count=len(extracted_files)
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Error extracting audio: {e}")
             return None
         except Exception as ex:
             print(f"Unexpected error: {ex}")
