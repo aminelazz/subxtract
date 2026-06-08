@@ -28,6 +28,7 @@ class Extractor(Extension):
             {"name": "Attachments", "value": "attachments"},
             {"name": "Chapters", "value": "chapters"},
             {"name": "Audio", "value": "audio"},
+            {"name": "All", "value": "all"},
             {"name": "All (Without Audio)", "value": "all_without_audio"},
         ],
     )
