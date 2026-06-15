@@ -282,11 +282,27 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             if extraction_type in ["audio", "all"] and zipped_audio and len(zipped_audio.paths) > 1:
                 merge_commands += f"{get_merge_commands(zipped_audio.paths, 'audio')}\n"
             
-            await message.edit(
-                content=summary + merge_commands,
-                files=[File(file=f, file_name=os.path.basename(f)) for f in files if f is not None]
-            )
-            logger.info("Finished upload results for: %s", os.path.basename(file))
+            # Filter out None values and prepare your list of Discord File objects
+            valid_files = [File(file=f, file_name=os.path.basename(f)) for f in files if f is not None]
+
+            # Split the files into batches of 10 to comply with Discord's strict limits
+            file_chunks = [valid_files[i:i + 10] for i in range(0, len(valid_files), 10)]
+
+            if file_chunks:
+                # Edit the initial message with the summary text and the first 10 files
+                await message.edit(
+                    content=summary + merge_commands,
+                    files=file_chunks[0]
+                )
+                
+                # If there are more than 10 files, send the remaining batches as new messages
+                for extra_chunk in file_chunks[1:]:
+                    await ctx.send(files=extra_chunk)
+            else:
+                # Fallback if somehow there are absolutely no files to attach
+                await message.edit(content=summary + merge_commands)
+
+            logger.info("Finished upload results for: %s (Total files sent: %d)", os.path.basename(file), len(valid_files))
         except Exception as e:
             await ctx.send(f"An error occurred while extracting MKV info from `{os.path.basename(file)}`: {e}")
             logger.error("An error occurred while extracting MKV info from %s: %s", os.path.basename(file), e)
