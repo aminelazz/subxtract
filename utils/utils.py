@@ -187,7 +187,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
     all_files_dict = file_utils.get_temp_files(dir_path)
     files = all_files_dict["filenames"] if all_files_dict else []
     full_paths = all_files_dict["full_paths"] if all_files_dict else []
-    # Check if there are any matroska files to extract
+# Check if there are any matroska files to extract
     if not files:
         await ctx.send("No Matroska files (.mkv, .mk3d, .mka) found for extraction.")
         logger.warning("No Matroska files found for extraction, Extraction aborted.")
@@ -195,12 +195,26 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         file_utils.clear_current_dl()
         file_utils.clear_temp()
         return
-    # Send list of files to be processed
-    all_files_str = "\n- ".join(files)
-    await ctx.send(
-        f"Files List:\n"
-        f"```- {all_files_str}```"
-    )
+        
+    # Chunk the files list to respect Discord's 2000-character limit
+    header = "Files List:\n"
+    current_chunk = header + "```text\n"
+
+    for file_name in files:
+        line = f"- {file_name}\n"
+        # Check against 1990 to leave room for the closing "```"
+        if len(current_chunk) + len(line) > 1990:
+            current_chunk += "```"
+            await ctx.send(current_chunk)
+            # Reset chunk for the next message
+            current_chunk = "```text\n" + line 
+        else:
+            current_chunk += line
+
+    # Send the final remaining chunk if it contains files
+    if current_chunk not in (header + "```text\n", "```text\n"):
+        current_chunk += "```"
+        await ctx.send(current_chunk)
 
     # Perform extraction
     for i, file in enumerate(full_paths, start=1):
