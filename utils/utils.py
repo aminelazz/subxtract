@@ -302,11 +302,15 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                 )
                 files.append(merge_commands_path)
             
-            # Filter out None values and prepare your list of Discord File objects
-            valid_files = [File(file=f, file_name=os.path.basename(f)) for f in files if f is not None]
-
-            # Split the files into batches of 10 to comply with Discord's strict limits
-            file_chunks = [valid_files[i:i + 10] for i in range(0, len(valid_files), 10)]
+            # Batch up to 10 files to test Discord's multi-attachment upload limit.
+            valid_paths = [path for path in files if path is not None]
+            valid_files = [
+                File(file=path, file_name=os.path.basename(path)) for path in valid_paths
+            ]
+            file_chunks = [
+                valid_files[index:index + 10]
+                for index in range(0, len(valid_files), 10)
+            ]
 
             if file_chunks:
                 # Edit the initial message with the summary text and the first 10 files
