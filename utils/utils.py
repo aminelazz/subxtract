@@ -302,37 +302,22 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                 )
                 files.append(merge_commands_path)
             
-            # Keep each upload request below Discord's request-size limit and 10-file limit.
-            file_chunks = []
-            current_chunk = []
-            current_chunk_size = 0
-            for file_path in (path for path in files if path is not None):
-                file_size = os.path.getsize(file_path)
-                if current_chunk and (
-                    len(current_chunk) >= 10
-                    or current_chunk_size + file_size > file_utils.DISCORD_MAX_REQUEST_SIZE
-                ):
-                    file_chunks.append(current_chunk)
-                    current_chunk = []
-                    current_chunk_size = 0
-                current_chunk.append(file_path)
-                current_chunk_size += file_size
+            # Filter out None values and prepare your list of Discord File objects
+            valid_files = [File(file=f, file_name=os.path.basename(f)) for f in files if f is not None]
 
-            if current_chunk:
-                file_chunks.append(current_chunk)
+            # Split the files into batches of 10 to comply with Discord's strict limits
+            file_chunks = [valid_files[i:i + 10] for i in range(0, len(valid_files), 10)]
 
             if file_chunks:
                 # Edit the initial message with the summary text and the first 10 files
                 await message.edit(
                     content=summary,
-                    files=[File(file=path, file_name=os.path.basename(path)) for path in file_chunks[0]]
+                    files=file_chunks[0]
                 )
                 
                 # If there are more than 10 files, send the remaining batches as new messages
                 for extra_chunk in file_chunks[1:]:
-                    await ctx.send(
-                        files=[File(file=path, file_name=os.path.basename(path)) for path in extra_chunk]
-                    )
+                    await ctx.send(files=extra_chunk)
             else:
                 # Fallback if somehow there are absolutely no files to attach
                 await message.edit(content=summary)

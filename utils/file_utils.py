@@ -10,7 +10,6 @@ from config import ALLOWED_CHANNELS_FILE, CURRENT_DL_FILE, QUEUE_FILE
 from utils.logger import get_logger
 
 DISCORD_MAX_FILE_SIZE = 20 * 1024 * 1024
-DISCORD_MAX_REQUEST_SIZE = 24 * 1024 * 1024
 
 # Define return type for allowed channels
 # will be like this:
