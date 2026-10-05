@@ -9,7 +9,7 @@ import zipfile
 from jsonschema import validate, ValidationError
 from config import SCHEMAS_DIR, EXTRACT_DIR
 from gen_types import mkvmerge_return_type
-from utils.file_utils import create_split_zip
+from utils.file_utils import DISCORD_MAX_FILE_SIZE, create_split_zip
 from utils.logger import get_logger
 
 # Define logger
@@ -130,10 +130,10 @@ class MKVService:
 
             # Check zip file size
             zip_file_size = os.path.getsize(zip_file_path)
-            if zip_file_size > 10 * 1024 * 1024:  # 10 MB limit
-                logger.warning("Subtitles zip file exceeds 10 MB, splitting...")
+            if zip_file_size > DISCORD_MAX_FILE_SIZE:
+                logger.warning("Subtitles zip file exceeds 20 MiB, splitting...")
                 try:
-                    split_files = create_split_zip(Path(zip_file_path), part_size=10 * 1024 * 1024)  # 10 MB parts
+                    split_files = create_split_zip(Path(zip_file_path), part_size=DISCORD_MAX_FILE_SIZE)
                     return MKVExtractReturnType(
                         paths=split_files,
                         count=len(extracted_files)
@@ -225,10 +225,10 @@ class MKVService:
 
             # Check zip file size
             zip_file_size = os.path.getsize(zip_file_path)
-            if zip_file_size > 10 * 1024 * 1024:  # 10 MB limit, since discord file limit is 10 MB
-                logger.warning("Attachments zip file exceeds 10 MB, splitting...")
+            if zip_file_size > DISCORD_MAX_FILE_SIZE:
+                logger.warning("Attachments zip file exceeds 20 MiB, splitting...")
                 try:
-                    split_files = create_split_zip(Path(zip_file_path), part_size=10 * 1024 * 1024)  # 10 MB parts
+                    split_files = create_split_zip(Path(zip_file_path), part_size=DISCORD_MAX_FILE_SIZE)
                     return MKVExtractReturnType(
                         paths=split_files,
                         count=len(extracted_files)
@@ -362,10 +362,10 @@ class MKVService:
 
             # Check zip file size
             zip_file_size = os.path.getsize(zip_file_path)
-            if zip_file_size > 10 * 1024 * 1024:  # 10 MB limit
-                logger.warning("Audio zip file exceeds 10 MB, splitting...")
+            if zip_file_size > DISCORD_MAX_FILE_SIZE:
+                logger.warning("Audio zip file exceeds 20 MiB, splitting...")
                 try:
-                    split_files = create_split_zip(Path(zip_file_path), part_size=10 * 1024 * 1024)  # 10 MB parts
+                    split_files = create_split_zip(Path(zip_file_path), part_size=DISCORD_MAX_FILE_SIZE)
                     return MKVExtractReturnType(
                         paths=split_files,
                         count=len(extracted_files)

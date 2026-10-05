@@ -9,6 +9,9 @@ from config import TEMP_DIR, EXTRACT_DIR, DOWNLOAD_DIR
 from config import ALLOWED_CHANNELS_FILE, CURRENT_DL_FILE, QUEUE_FILE
 from utils.logger import get_logger
 
+DISCORD_MAX_FILE_SIZE = 20 * 1024 * 1024
+DISCORD_MAX_REQUEST_SIZE = 24 * 1024 * 1024
+
 # Define return type for allowed channels
 # will be like this:
 # {"allowed_channels": [{"guild": guild_id, "channels": [channel_id1, channel_id2]}, ...]}
@@ -373,7 +376,7 @@ def clear_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-def create_split_zip(zip_path: Path, part_size: int = 10 * 1024 * 1024) -> list[Path]:
+def create_split_zip(zip_path: Path, part_size: int = DISCORD_MAX_FILE_SIZE) -> list[Path]:
     """Creates a split zip file from the specified zip file."""
     # Configure logging
     logger = get_logger("create_split_zip")
