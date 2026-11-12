@@ -205,22 +205,46 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
 
     logger.info("Starting extraction of Matroska files from download with GID: %s", gid)
     all_files_dict = file_utils.get_temp_files(dir_path)
-    files = all_files_dict["filenames"] if all_files_dict else []
-    full_paths = all_files_dict["full_paths"] if all_files_dict else []
-# Check if there are any matroska files to extract
-    if not files:
-        await ctx.send("No Matroska files (.mkv, .mk3d, .mka) found for extraction.")
-        logger.warning("No Matroska files found for extraction, Extraction aborted.")
+    candidate_files = all_files_dict["full_paths"] if all_files_dict else []
+    downloaded_files = [
+        Path(file_path)
+        for file_path in candidate_files
+        if Path(file_path).is_file()
+    ]
+    skipped_files = len(candidate_files) - len(downloaded_files)
+
+    if skipped_files:
+        logger.info(
+            "Skipping %d selected file(s) that are not present in the download directory.",
+            skipped_files,
+        )
+
+    # Only selected files that aria2 actually downloaded are processed.
+    if not downloaded_files:
+        await ctx.send(
+            "No selected Matroska files (.mkv, .mk3d, .mka) were downloaded."
+        )
+        logger.warning(
+            "No selected downloaded Matroska files found for GID %s; extraction aborted.",
+            gid,
+        )
         aria2_service.remove_all_downloads(force=True)
         file_utils.clear_current_dl()
         file_utils.clear_temp()
         return
-        
+
+    downloaded_file_names = [
+        os.path.relpath(file_path, dir_path) for file_path in downloaded_files
+    ]
+    await ctx.send(
+        f"Processing {len(downloaded_files)} selected downloaded Matroska file(s)."
+    )
+
     # Chunk the files list to respect Discord's 2000-character limit
-    header = "Files List:\n"
+    header = "Selected downloaded files:\n"
     current_chunk = header + "```text\n"
 
-    for file_name in files:
+    for file_name in downloaded_file_names:
         line = f"- {file_name}\n"
         # Check against 1990 to leave room for the closing "```"
         if len(current_chunk) + len(line) > 1990:
@@ -237,7 +261,8 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         await ctx.send(current_chunk)
 
     # Perform extraction
-    for i, file in enumerate(full_paths, start=1):
+    total_files = len(downloaded_files)
+    for i, file_path in enumerate(downloaded_files, start=1):
         # Check for cancellation
         if event.is_set():
             aria2_service.remove_all_downloads(force=True)
@@ -246,8 +271,9 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             await ctx.send("Extraction has been cancelled.")
             logger.info("Extraction for download with GID: %s has been cancelled.", gid)
             return
-        logger.info("Processing (%d/%d)", i, len(full_paths))
-        message = await ctx.send(f"Processing file ({i}/{len(full_paths)})...")
+        logger.info("Processing selected downloaded file (%d/%d)", i, total_files)
+        message = await ctx.send(f"Processing selected file ({i}/{total_files})...")
+        file = str(file_path)
         try:
             mkv_service_class = mkv_service.MKVService()
             
@@ -276,13 +302,13 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                 zipped_audio = mkv_service_class.extract_audio(file)
 
             # Files' paths to send
-            files=[
+            output_files = [
                 mediainfo_path,
                 chapters.get("path") if chapters else None
             ]
-            files.extend(zipped_subs.paths if zipped_subs else [])
-            files.extend(zipped_attachments.paths if zipped_attachments else [])
-            files.extend(zipped_audio.paths if zipped_audio else [])
+            output_files.extend(zipped_subs.paths if zipped_subs else [])
+            output_files.extend(zipped_attachments.paths if zipped_attachments else [])
+            output_files.extend(zipped_audio.paths if zipped_audio else [])
             
             logger.info("Finished processing MKV file, Uploading results...")
             await message.edit(content="Uploading results...")
@@ -320,10 +346,10 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                 merge_commands_path = file_utils.save_file_to_extract_dir(
                     merge_commands.encode("utf-8"), "merge_commands.txt"
                 )
-                files.append(merge_commands_path)
+                output_files.append(merge_commands_path)
             
             # Batch up to 10 files to test Discord's multi-attachment upload limit.
-            valid_paths = [path for path in files if path is not None]
+            valid_paths = [path for path in output_files if path is not None]
             valid_files = [
                 File(file=path, file_name=os.path.basename(path)) for path in valid_paths
             ]
@@ -444,6 +470,7 @@ async def download_and_extract(
                 message = await ctx.send(f"Metadata downloaded. New GID: `{gid}`")
                 logger.info("Metadata downloaded, starting following download with GID: %s", gid)
                 if select:
+                    selection_message = None
                     aria2_service.pause_download(gid)
                     logger.info("Paused torrent GID %s while waiting for file selection.", gid)
                     tunnel_url = get_tunnel_url()
@@ -473,7 +500,7 @@ async def download_and_extract(
                     selection_url = (
                         f"{tunnel_url}/app/files?gid={gid}&pin={pin}"
                     )
-                    await ctx.send(
+                    selection_message = await ctx.send(
                         f"Select the torrent files before downloading:\n{selection_url}"
                     )
                     logger.info("Sent torrent file-selection URL for GID %s.", gid)
@@ -485,6 +512,8 @@ async def download_and_extract(
                             aria2_service.remove_all_downloads(force=True)
                             file_utils.clear_current_dl()
                             file_utils.clear_temp()
+                            if selection_message is not None:
+                                await selection_message.delete()
                             await message.edit(content="Download has been cancelled.")
                             logger.info("Torrent selection cancelled for GID %s.", gid)
                             return False
@@ -492,6 +521,19 @@ async def download_and_extract(
                         if torrent_status["status"] != "paused":
                             break
                         await asyncio.sleep(2)
+                    if selection_message is not None:
+                        try:
+                            await selection_message.delete()
+                            logger.info(
+                                "Deleted file-selection message after torrent GID %s started.",
+                                gid,
+                            )
+                        except Exception as exc:
+                            logger.error(
+                                "Could not delete file-selection message for GID %s: %s",
+                                gid,
+                                exc,
+                            )
                     logger.info("File selection submitted; resumed torrent GID %s.", gid)
                 status = aria2_service.get_status(gid)
                 #region Track Torrent progress
