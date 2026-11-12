@@ -126,7 +126,6 @@ def get_nyaa_torrent_link(url: str) -> str | None:
 
     return None
 
-
 def get_tunnel_url() -> str | None:
     """Read and validate the public web interface URL from the shared data file."""
     logger = get_logger("cloudflare_tunnel")
@@ -204,26 +203,9 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
     logger = get_logger("extract_from_download")
 
     logger.info("Starting extraction of Matroska files from download with GID: %s", gid)
-    all_files_dict = file_utils.get_temp_files(dir_path)
-    candidate_files = all_files_dict["full_paths"] if all_files_dict else []
-    downloaded_files = [
-        Path(file_path)
-        for file_path in candidate_files
-        if Path(file_path).is_file()
-    ]
-    skipped_files = len(candidate_files) - len(downloaded_files)
+    files = aria2_service.get_files(gid)
 
-    if skipped_files:
-        logger.info(
-            "Skipping %d selected file(s) that are not present in the download directory.",
-            skipped_files,
-        )
-    logger.info("Found %d candidate files for extraction in directory: %s", len(candidate_files), dir_path)
-    logger.info("Found %d downloaded files for extraction in directory: %s", len(downloaded_files), dir_path)
-    logger.info("Found %d skipped files for extraction in directory: %s", skipped_files, dir_path)
-
-    # Only selected files that aria2 actually downloaded are processed.
-    if not downloaded_files:
+    if not files or len(files) == 0:
         await ctx.send(
             "No selected Matroska files (.mkv, .mk3d, .mka) were downloaded."
         )
@@ -234,13 +216,17 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         aria2_service.remove_all_downloads(force=True)
         file_utils.clear_current_dl()
         file_utils.clear_temp()
-        return
+        return None
 
+    logger.info("Found %d files for extraction in directory: %s", len(files), dir_path)
+
+    files = [f.get("path", "") for f in files]
     downloaded_file_names = [
-        os.path.relpath(file_path, dir_path) for file_path in downloaded_files
+        os.path.relpath(f.get("path", ""), dir_path)
+        for f in files
     ]
     await ctx.send(
-        f"Processing {len(downloaded_files)} selected downloaded Matroska file(s)."
+        f"Processing {len(files)} selected downloaded Matroska file(s)."
     )
 
     # Chunk the files list to respect Discord's 2000-character limit
@@ -264,8 +250,8 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         await ctx.send(current_chunk)
 
     # Perform extraction
-    total_files = len(downloaded_files)
-    for i, file_path in enumerate(downloaded_files, start=1):
+    total_files = len(files)
+    for i, file_path in enumerate(files, start=1):
         # Check for cancellation
         if event.is_set():
             aria2_service.remove_all_downloads(force=True)
