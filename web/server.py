@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -77,6 +78,9 @@ class Aria2RpcClient:
 
     async def resume(self, gid: str) -> Any:
         return await self.call("aria2.unpause", gid)
+
+    async def getStatus(self, gid: str) -> dict[str, Any]:
+        return await self.call("aria2.tellStatus", gid, ["status"])
 
 
 def _validate_pin(gid: str, pin: str) -> None:
@@ -175,12 +179,29 @@ async def submit_torrent_selection(
                 status_code=400,
                 detail="The selected files exceed the 20 GB download limit.",
             )
-        await app.state.aria2.changeOption(gid, {"select-file": ",".join(map(str, selected))})
-        await app.state.aria2.resume(gid)
+        aria2: Aria2RpcClient = app.state.aria2
+        await aria2.changeOption(gid, {"select-file": ",".join(map(str, selected))})
+        await aria2.resume(gid)
+
+        resumed_status = ""
+        for _ in range(20):
+            resumed_status = (await aria2.getStatus(gid)).get("status", "")
+            if resumed_status in {"active", "waiting", "complete"}:
+                break
+            if resumed_status in {"error", "removed"}:
+                raise Aria2RpcError(
+                    f"aria2 did not resume the torrent; status is {resumed_status}"
+                )
+            await asyncio.sleep(0.25)
+        else:
+            raise Aria2RpcError(
+                f"aria2 did not confirm the torrent resumed; status is {resumed_status or 'unknown'}"
+            )
         return {
             "engine": "aria2",
             "error": False,
             "message": "Your selection has been submitted successfully.",
+            "status": resumed_status,
         }
     except HTTPException:
         raise

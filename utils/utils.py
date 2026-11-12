@@ -518,15 +518,32 @@ async def download_and_extract(
                             logger.info("Torrent selection cancelled for GID %s.", gid)
                             return False
                         torrent_status = aria2_service.get_status(gid)
-                        if torrent_status["status"] != "paused":
+                        torrent_state = torrent_status["status"]
+                        # Check if the torrent has resumed after selection
+                        if torrent_state in {"active", "waiting", "complete"}:
                             break
+                        if torrent_state in {"error", "removed"}:
+                            if selection_message is not None:
+                                await selection_message.delete()
+                            await ctx.send(
+                                f"Torrent could not resume after selection (status: {torrent_state})."
+                            )
+                            logger.error(
+                                "Torrent GID %s failed to resume after selection; status: %s",
+                                gid,
+                                torrent_state,
+                            )
+                            aria2_service.remove_all_downloads(force=True)
+                            file_utils.clear_current_dl()
+                            file_utils.clear_temp()
+                            return False
                         await asyncio.sleep(2)
                     if selection_message is not None:
                         try:
                             await selection_message.delete()
                             logger.info(
-                                "Deleted file-selection message after torrent GID %s started.",
-                                gid,
+                                "Deleted file-selection message after aria2 confirmed GID %s status=%s.",
+                                gid, torrent_state,
                             )
                         except Exception as exc:
                             logger.error(
