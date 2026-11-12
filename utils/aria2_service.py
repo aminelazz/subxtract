@@ -65,7 +65,11 @@ def pause_download(gid: str):
     """Pauses an aria2 download."""
     try:
         api.get_download(gid).pause()
-        time.sleep(2)  # Give some time for Aria2 to process the pause
+
+        while True:
+            download = api.get_download(gid)
+            if download.status == "paused":
+                break
         logger.info("Download with GID %s has been paused.", gid)
         return True
     except Exception as e:
@@ -76,8 +80,12 @@ def resume_download(gid: str):
     """Resumes an aria2 download."""
     try:
         api.get_download(gid).resume()
-        time.sleep(2)  # Give some time for Aria2 to process the resume
-        logger.info("Download with GID %s has been resumed.", gid)
+
+        while True:
+            download = api.get_download(gid)
+            if download.status in {"active", "waiting", "complete"}:
+                break
+        logger.info("Download with GID %s has resumed.", gid)
         return True
     except Exception as e:
         logger.error("Error resuming download with GID %s: %s", gid, e)
