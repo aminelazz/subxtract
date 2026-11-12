@@ -74,9 +74,10 @@ def get_files(gid: str) -> list[dict] | None:
         file_list = [
             f
             for f in file_list
-            if f.get("path", "").is_file() and str(f.get("path", "")).lower().endswith(('.mkv', '.mk3d', '.mka'))
+            if Path(f.get("path", "")).is_file()
+            and str(f.get("path", "")).lower().endswith(('.mkv', '.mk3d', '.mka'))
         ]
-        file_list.sort()
+        file_list.sort(key=lambda f: str(f.get("path", "")))
     except Exception as e:
         logger.error("Error retrieving files for GID %s: %s", gid, e)
         return None
