@@ -58,14 +58,43 @@ def get_status(gid: str):
         "progress": task.progress_string(),
         "dir": task.dir,
         "followed_by_ids": task.followed_by_ids,
-        "speed": task.download_speed_string()
+        "speed": task.download_speed_string(),
+        "seeders": task.num_seeders if isinstance(task, aria2p.BitTorrent) else "N/A",
+        "num_selected_files": len([f for f in task.files if f.selected]),
+        "files": [{"index": f.index, "path": f.path, "size": f.length_string(human_readable=True)} for f in task.files]
     }
+
+def get_files(gid: str) -> list[dict] | None:
+    """Retrieves selected, fully downloaded Matroska files for a download GID."""
+    try:
+        task = api.get_download(gid)
+        file_list = [
+            {
+                "index": file.index,
+                "path": file.path,
+                "size": file.length_string(human_readable=True),
+            }
+            for file in task.files
+            if file.selected
+            and file.path.is_file()
+            and file.path.suffix.lower() in [".mkv", ".mk3d", ".mka"]
+        ]
+
+        file_list.sort(key=lambda f: str(f.get("path", "")))
+    except Exception as e:
+        logger.error("Error retrieving files for GID %s: %s", gid, e)
+        return None
+    return file_list
 
 def pause_download(gid: str):
     """Pauses an aria2 download."""
     try:
         api.get_download(gid).pause()
-        time.sleep(2)  # Give some time for Aria2 to process the pause
+
+        while True:
+            download = api.get_download(gid)
+            if download.status == "paused":
+                break
         logger.info("Download with GID %s has been paused.", gid)
         return True
     except Exception as e:
@@ -76,8 +105,12 @@ def resume_download(gid: str):
     """Resumes an aria2 download."""
     try:
         api.get_download(gid).resume()
-        time.sleep(2)  # Give some time for Aria2 to process the resume
-        logger.info("Download with GID %s has been resumed.", gid)
+
+        while True:
+            download = api.get_download(gid)
+            if download.status in {"active", "waiting", "complete"}:
+                break
+        logger.info("Download with GID %s has resumed.", gid)
         return True
     except Exception as e:
         logger.error("Error resuming download with GID %s: %s", gid, e)
@@ -97,7 +130,7 @@ def track_progress(gid: str):
             "status": download.status,
             "speed": download.download_speed_string(),
             "seeders": download.num_seeders if isinstance(download, aria2p.BitTorrent) else "N/A",
-            "num_files": len(download.files),
+            "num_files": len([f for f in download.files if f.selected]),
             "eta": download.eta_string(),
             "dir": download.dir,
             "error": download.error_message
