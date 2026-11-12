@@ -65,17 +65,20 @@ def get_status(gid: str):
     }
 
 def get_files(gid: str) -> list[dict] | None:
-    """Retrieves the list of files associated with a download GID."""
+    """Retrieves selected, fully downloaded Matroska files for a download GID."""
     try:
         task = api.get_download(gid)
-        file_list = [{"index": f.index, "path": f.path, "size": f.length_string(human_readable=True)} for f in task.files]
-
-        # Filter files to only include those that are matroska video files (.mkv, .mk3d, .mka)
         file_list = [
-            f
-            for f in file_list
-            if Path(f.get("path", "")).is_file()
-            and str(f.get("path", "")).lower().endswith(('.mkv', '.mk3d', '.mka'))
+            {
+                "index": file.index,
+                "path": file.path,
+                "size": file.length_string(human_readable=True),
+            }
+            for file in task.files
+            if file.selected
+            and file.completed_length >= file.length
+            and file.path.is_file()
+            and file.path.suffix.lower() in {".mkv", ".mk3d", ".mka"}
         ]
         file_list.sort(key=lambda f: str(f.get("path", "")))
     except Exception as e:

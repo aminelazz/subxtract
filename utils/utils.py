@@ -222,8 +222,8 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
 
     files = [f.get("path", "") for f in files]
     downloaded_file_names = [
-        os.path.relpath(f.get("path", ""), dir_path)
-        for f in files
+        os.path.relpath(file_path, dir_path)
+        for file_path in files
     ]
     await ctx.send(
         f"Processing {len(files)} selected downloaded Matroska file(s)."
