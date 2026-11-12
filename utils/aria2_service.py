@@ -60,7 +60,7 @@ def get_status(gid: str):
         "followed_by_ids": task.followed_by_ids,
         "speed": task.download_speed_string(),
         "seeders": task.num_seeders if isinstance(task, aria2p.BitTorrent) else "N/A",
-        "num_files": len(task.files),
+        "num_selected_files": len([f for f in task.files if f.selected]),
         "files": [{"index": f.index, "path": f.path, "size": f.length_string(human_readable=True)} for f in task.files]
     }
 
@@ -130,7 +130,7 @@ def track_progress(gid: str):
             "status": download.status,
             "speed": download.download_speed_string(),
             "seeders": download.num_seeders if isinstance(download, aria2p.BitTorrent) else "N/A",
-            "num_files": len(download.files),
+            "num_files": len([f for f in download.files if f.selected]),
             "eta": download.eta_string(),
             "dir": download.dir,
             "error": download.error_message
