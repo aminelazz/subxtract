@@ -76,10 +76,10 @@ def get_files(gid: str) -> list[dict] | None:
             }
             for file in task.files
             if file.selected
-            and file.completed_length >= file.length
             and file.path.is_file()
-            and file.path.suffix.lower() in {".mkv", ".mk3d", ".mka"}
+            and file.path.suffix.lower() in [".mkv", ".mk3d", ".mka"]
         ]
+
         file_list.sort(key=lambda f: str(f.get("path", "")))
     except Exception as e:
         logger.error("Error retrieving files for GID %s: %s", gid, e)
