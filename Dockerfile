@@ -2,7 +2,7 @@
 FROM alpine/git AS clone-subxtract
 
 # Clone the subxtract repository
-RUN git clone https://github.com/aminelazz/subxtract.git /subxtract
+RUN git clone -b dev https://github.com/aminelazz/subxtract.git /subxtract
 
 # ---- Stage 2: Build the final image ----
 # Base image (Python 3.10 on Alpine 3.22)
