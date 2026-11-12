@@ -126,6 +126,8 @@ class MKVService:
             if not extracted_files:
                 return None
 
+            logger.info("Extracted %d subtitle files.", len(extracted_files))
+
             zip_file_path = os.path.join(output_dir, "subtitles.zip")
             with zipfile.ZipFile(zip_file_path, "w") as zipf:
                 for file in extracted_files:
@@ -226,6 +228,8 @@ class MKVService:
             if not extracted_files:
                 return None
 
+            logger.info("Extracted %d attachments.", len(extracted_files))
+
             zip_file_path = os.path.join(output_dir, "attachments.zip")
             with zipfile.ZipFile(zip_file_path, "w") as zipf:
                 for file in extracted_files:
@@ -287,6 +291,8 @@ class MKVService:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
+
+            logger.info("Extracted %d chapters.", chapters[0].get("num_entries", 0) if chapters else 0)
 
             return {
                 "path": Path(out_path),
@@ -371,6 +377,7 @@ class MKVService:
             if not extracted_files:
                 return None
 
+            logger.info("Extracted %d audio files.", len(extracted_files))
             zip_file_path = os.path.join(output_dir, "audio.zip")
             with zipfile.ZipFile(zip_file_path, "w") as zipf:
                 for file in extracted_files:
@@ -420,5 +427,6 @@ class MKVService:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
+                logger.info("Extracted video track %d.", t_id['id'])
                 extracted_files.append(out_path)
         return extracted_files
