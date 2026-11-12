@@ -32,12 +32,21 @@ class Extractor(Extension):
             {"name": "All (Without Audio)", "value": "all_without_audio"},
         ],
     )
-    async def extract(self, ctx: SlashContext, url: str, type: str):
+    @slash_option(
+        name="select",
+        description="Open the torrent file-selection page before downloading.",
+        required=False,
+        opt_type=OptionType.BOOLEAN,
+    )
+    async def extract(self, ctx: SlashContext, url: str, type: str, select: bool = False):
         """Downloads using Aria2 (magnet/torrent/ddl links), Extracts MKV tracks, then uploads them."""
+        select = bool(select)
         await ctx.defer()
 
         # Start download and extraction process
-        completed = await utils.download_and_extract(ctx, url, extraction_type=type)
+        completed = await utils.download_and_extract(
+            ctx, url, extraction_type=type, select=select
+        )
 
         # Check if completed successfully
         if completed is True:

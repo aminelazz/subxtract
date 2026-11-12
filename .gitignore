@@ -205,6 +205,8 @@ temp/
 data/allowed_channels.json
 data/current_download.json
 data/queue.json
+data/cloudflared
+data/*.txt
 
 # Logs
 logs/
@@ -263,3 +265,5 @@ logs/
 
 # script.py
 script.py
+
+utils/*.txt

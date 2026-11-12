@@ -10,7 +10,7 @@ import requests
 from interactions import File
 from interactions import Message, SlashContext
 
-from config import DISCORD_TOKEN, APP_ID
+from config import DISCORD_TOKEN, APP_ID, TUNNEL_URL_FILE
 from utils import aria2_service, file_utils, mkv_service
 from utils.controller import extraction_cancel_event
 from utils.logger import get_logger
@@ -125,6 +125,21 @@ def get_nyaa_torrent_link(url: str) -> str | None:
         return None
 
     return None
+
+
+def get_tunnel_url() -> str | None:
+    """Read and validate the public web interface URL from the shared data file."""
+    logger = get_logger("cloudflare_tunnel")
+    tunnel_file = Path(TUNNEL_URL_FILE)
+    if not tunnel_file.is_file():
+        logger.error("Cloudflare tunnel URL file does not exist: %s", tunnel_file)
+        return None
+
+    url = tunnel_file.read_text(encoding="utf-8").strip().rstrip("/")
+    if not re.match(r"^https://[A-Za-z0-9.-]+(?::\d+)?(?:/.*)?$", url):
+        logger.error("Cloudflare tunnel URL file contains an invalid URL.")
+        return None
+    return url
 
 async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool | None:
     """Downloads a file and tracks its progress."""
@@ -334,7 +349,12 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             continue
         file_utils.clear_extract_dir()
 
-async def download_and_extract(ctx: SlashContext, url: str, extraction_type: str = "all") -> bool:
+async def download_and_extract(
+    ctx: SlashContext,
+    url: str,
+    extraction_type: str = "all",
+    select: bool = False,
+) -> bool:
     """Combined download and extraction process."""
     # Reset cancellation event
     extraction_cancel_event.clear()
@@ -418,6 +438,38 @@ async def download_and_extract(ctx: SlashContext, url: str, extraction_type: str
                 gid = status["followed_by_ids"][0]
                 message = await ctx.send(f"Metadata downloaded. New GID: `{gid}`")
                 logger.info("Metadata downloaded, starting following download with GID: %s", gid)
+                if select:
+                    tunnel_url = get_tunnel_url()
+                    if tunnel_url is None:
+                        await ctx.send(
+                            "File selection was requested, but the Cloudflare tunnel URL "
+                            "is unavailable. Ask an administrator to restart the tunnel."
+                        )
+                        logger.error(
+                            "Selection requested for GID %s, but no usable tunnel URL was found.",
+                            gid,
+                        )
+                        aria2_service.remove_all_downloads(force=True)
+                        file_utils.clear_current_dl()
+                        file_utils.clear_temp()
+                        return False
+                    pin = "".join(character for character in gid if character.isdigit())[:4]
+                    if len(pin) < 4:
+                        await ctx.send(
+                            "File selection is unavailable because aria2 returned an invalid GID."
+                        )
+                        logger.error("Could not generate a four-digit PIN for GID %s.", gid)
+                        aria2_service.remove_all_downloads(force=True)
+                        file_utils.clear_current_dl()
+                        file_utils.clear_temp()
+                        return False
+                    selection_url = (
+                        f"{tunnel_url}/app/files?gid={gid}&pin={pin}"
+                    )
+                    await ctx.send(
+                        f"Select the torrent files before downloading:\n{selection_url}"
+                    )
+                    logger.info("Sent torrent file-selection URL for GID %s.", gid)
                 status = aria2_service.get_status(gid)
                 #region Track Torrent progress
                 while status["status"] != "complete":

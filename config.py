@@ -17,3 +17,6 @@ SCHEMAS_DIR = os.getenv("SCHEMAS_DIR", "./schemas")
 ALLOWED_CHANNELS_FILE = os.getenv("ALLOWED_CHANNELS_FILE", "./data/allowed_channels.json")
 CURRENT_DL_FILE = os.getenv("CURRENT_DL_FILE", "./data/current_download.json")
 QUEUE_FILE = os.getenv("QUEUE_FILE", "./data/queue.json")
+TUNNEL_URL_FILE = os.getenv(
+    "TUNNEL_URL_FILE", "./data/cloudflare_tunnel_url.txt"
+)

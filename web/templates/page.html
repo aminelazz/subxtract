@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aria2 file selection</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #f4f6f8; color: #17202a; }
+    main { max-width: 900px; margin: 2rem auto; padding: 1.5rem; background: white; border-radius: 12px; box-shadow: 0 4px 20px #0002; }
+    h1 { margin-top: 0; }
+    .toolbar, .stats { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: 1rem 0; }
+    button, input { font: inherit; padding: .5rem .75rem; border: 1px solid #aab4be; border-radius: 6px; }
+    button { cursor: pointer; background: #e8eef5; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    #tree { padding-left: 0; list-style: none; }
+    #tree ul { padding-left: 1.5rem; list-style: none; }
+    .node { margin: .35rem 0; }
+    .node-label { display: inline-flex; gap: .5rem; align-items: center; }
+    .toggle { min-width: 2rem; padding: .1rem .35rem; }
+    .file-meta { color: #52606d; font-size: .9rem; }
+    #status { min-height: 1.5rem; margin: .75rem 0; }
+    .error { color: #b42318; } .success { color: #067647; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #111827; color: #f3f4f6; } main { background: #1f2937; }
+      .file-meta { color: #cbd5e1; } button, input { background: #374151; color: inherit; border-color: #6b7280; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>aria2 torrent files</h1>
+  <p id="status">Loading…</p>
+  <form id="pin-form" hidden>
+    <label for="pin">PIN</label>
+    <input id="pin" inputmode="numeric" autocomplete="one-time-code" required>
+    <button type="submit">Load files</button>
+  </form>
+  <section id="content" hidden>
+    <div class="toolbar">
+      <button id="select-all" type="button">Select All</button>
+      <button id="deselect-all" type="button">Deselect All</button>
+      <button id="submit" type="button">Submit Selection</button>
+    </div>
+    <div class="stats">
+      <span id="counts"></span><span id="sizes"></span><span id="progress"></span>
+    </div>
+    <ul id="tree"></ul>
+  </section>
+</main>
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const gid = params.get("gid") || "";
+  let pin = params.get("pin") || "";
+  const status = document.getElementById("status");
+  const pinForm = document.getElementById("pin-form");
+  const content = document.getElementById("content");
+  const treeElement = document.getElementById("tree");
+  let tree = [];
+
+  const setStatus = (text, kind = "") => { status.textContent = text; status.className = kind; };
+  const formatBytes = bytes => {
+    if (!bytes) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / 1024 ** power).toFixed(power ? 2 : 0)} ${units[power]}`;
+  };
+  const filesIn = node => node.type === "file" ? [node] : node.children.flatMap(filesIn);
+  const allFiles = () => tree.flatMap(filesIn);
+  const updateFolder = (checkbox, files) => {
+    const selected = files.filter(file => file.selected).length;
+    checkbox.checked = selected === files.length && files.length > 0;
+    checkbox.indeterminate = selected > 0 && selected < files.length;
+  };
+  const updateAncestors = element => {
+    let parent = element.closest("ul")?.parentElement;
+    while (parent) {
+      const box = parent.querySelector(":scope > .node-label > input");
+      if (box) updateFolder(box, [...parent.querySelectorAll(":scope > ul input[data-file]")].map(input => input._file));
+      parent = parent.parentElement?.parentElement?.closest(".node");
+    }
+  };
+  const render = (items, parentList) => items.forEach(item => {
+    const li = document.createElement("li"); li.className = "node";
+    const label = document.createElement("label"); label.className = "node-label";
+    const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.checked = item.type === "file" ? item.selected : false;
+    if (item.type === "file") {
+      checkbox.dataset.file = "true"; checkbox._file = item;
+      checkbox.addEventListener("change", () => { item.selected = checkbox.checked; updateAncestors(checkbox); updateStats(); });
+      label.append(checkbox, document.createTextNode(item.name));
+      const meta = document.createElement("span"); meta.className = "file-meta"; meta.textContent = `(${formatBytes(item.size)}, ${item.progress.toFixed(2)}%)`; label.append(meta);
+    } else {
+      const toggle = document.createElement("button"); toggle.type = "button"; toggle.className = "toggle"; toggle.textContent = "−"; toggle.setAttribute("aria-label", "Collapse folder");
+      const children = document.createElement("ul"); render(item.children, children);
+      checkbox.addEventListener("change", () => { filesIn(item).forEach(file => file.selected = checkbox.checked); children.querySelectorAll("input[data-file]").forEach(input => input.checked = checkbox.checked); updateFolder(checkbox, filesIn(item)); updateAncestors(checkbox); updateStats(); });
+      toggle.addEventListener("click", () => { const collapsed = children.hidden = !children.hidden; toggle.textContent = collapsed ? "+" : "−"; toggle.setAttribute("aria-label", collapsed ? "Expand folder" : "Collapse folder"); });
+      label.append(checkbox, document.createTextNode(item.name), toggle); li.append(label, children); updateFolder(checkbox, filesIn(item));
+    }
+    li.prepend(label); if (item.type === "file") li.append();
+    parentList.append(li);
+  });
+  const updateStats = () => {
+    const files = allFiles(), selected = files.filter(file => file.selected);
+    const total = files.reduce((sum, file) => sum + file.size, 0), selectedSize = selected.reduce((sum, file) => sum + file.size, 0);
+    const downloaded = files.reduce((sum, file) => sum + file.size * file.progress / 100, 0);
+    document.getElementById("counts").textContent = `${selected.length}/${files.length} files selected`;
+    document.getElementById("sizes").textContent = `${formatBytes(selectedSize)} of ${formatBytes(total)}`;
+    document.getElementById("progress").textContent = `Download progress: ${total ? (downloaded / total * 100).toFixed(2) : "0.00"}%`;
+    document.getElementById("submit").disabled = selected.length === 0;
+  };
+  const load = async () => {
+    if (!gid) { setStatus("A gid query parameter is required.", "error"); return; }
+    if (!pin) { pinForm.hidden = false; setStatus("Enter the PIN to load this torrent."); return; }
+    setStatus("Loading files…");
+    try {
+      const response = await fetch(`/app/files/torrent?gid=${encodeURIComponent(gid)}&pin=${encodeURIComponent(pin)}&mode=get`);
+      const result = await response.json(); if (!response.ok || result.error) throw new Error(result.message || "Unable to load files.");
+      tree = result.files; treeElement.replaceChildren(); render(tree, treeElement); content.hidden = false; pinForm.hidden = true; setStatus("Files loaded.");
+      updateStats();
+    } catch (error) { setStatus(error.message, "error"); }
+  };
+  pinForm.addEventListener("submit", event => { event.preventDefault(); pin = document.getElementById("pin").value.trim(); load(); });
+  document.getElementById("select-all").addEventListener("click", () => { allFiles().forEach(file => file.selected = true); treeElement.querySelectorAll("input").forEach(input => input.checked = true); treeElement.querySelectorAll("input:not([data-file])").forEach(input => input.indeterminate = false); updateStats(); });
+  document.getElementById("deselect-all").addEventListener("click", () => { allFiles().forEach(file => file.selected = false); treeElement.querySelectorAll("input").forEach(input => { input.checked = false; input.indeterminate = false; }); updateStats(); });
+  document.getElementById("submit").addEventListener("click", async () => {
+    setStatus("Submitting selection…");
+    try {
+      const response = await fetch(`/app/files/torrent?gid=${encodeURIComponent(gid)}&pin=${encodeURIComponent(pin)}&mode=selection`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(tree) });
+      const result = await response.json(); if (!response.ok || result.error) throw new Error(result.message || "Unable to submit selection.");
+      setStatus("Your selection has been submitted successfully.", "success");
+    } catch (error) { setStatus(error.message, "error"); }
+  });
+  load();
+})();
+</script>
+</body>
+</html>

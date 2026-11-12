@@ -13,6 +13,8 @@ A Discord bot for downloading and extracting content from MKV (Matroska) files. 
 - **Queue System**: Manage multiple download requests with a per-user queue
 - **Channel Permissions**: Restrict bot commands to specific Discord channels
 - **Real-time Progress**: Track download progress with live status updates
+- **Torrent File Selection**: Select individual torrent files and folders before downloading
+- **Cloudflare Tunnel**: Publish the torrent selection interface for Discord users
 - **Split File Support**: Automatically split large zip files to fit Discord's 10MB upload limit
 - **Cancellation**: Stop ongoing downloads and extractions at any time
 
@@ -33,6 +35,10 @@ A Discord bot for downloading and extracting content from MKV (Matroska) files. 
 - python-dotenv 1.1.1
 - jsonschema 4.25.1
 - jsonschema-gentypes 2.12.0
+- FastAPI
+- aiohttp
+- Jinja2
+- Uvicorn
 
 ## Installation
 
@@ -101,6 +107,9 @@ SCHEMAS_DIR=./schemas
 ALLOWED_CHANNELS_FILE=./data/allowed_channels.json
 CURRENT_DL_FILE=./data/current_download.json
 QUEUE_FILE=./data/queue.json
+
+# File containing the current Cloudflare tunnel URL
+TUNNEL_URL_FILE=./data/cloudflare_tunnel_url.txt
 ```
 
 ### 6. Start Aria2 RPC Server
@@ -123,8 +132,38 @@ aria2c --conf-path="./config/aria2.conf"
 ### 7. Create Required Directories
 
 ```bash
-mkdir -p data schemas temp/downloads temp/extracted
+mkdir -p data schemas data/temp/downloads data/temp/extracted
 ```
+
+### 8. Start the Torrent Selection Web Interface
+
+The optional web interface communicates only with aria2 and lets users select
+files and folders from a torrent:
+
+```bash
+python -m uvicorn web.server:app --host 0.0.0.0 --port 8765
+```
+
+Open `http://localhost:8765/app/files` locally. The bot supplies the GID and
+PIN when the `/extract` command uses `select: True`.
+
+### 9. Expose the Web Interface with Cloudflare
+
+Run Cloudflare Tunnel against the web interface port. Do not expose aria2's
+RPC port (`6800`):
+
+```bash
+cloudflared tunnel --url http://localhost:8765
+```
+
+Save the generated `https://*.trycloudflare.com` URL in:
+
+```text
+data/cloudflare_tunnel_url.txt
+```
+
+The bot reads this file whenever file selection is requested. Quick Tunnel
+URLs change after a restart.
 
 ## Usage
 
@@ -143,6 +182,9 @@ python bot.py
 #### Download & Extraction
 - `/extract <url>` - Download and extract content from MKV file(s)
   - Supports: Torrent files, magnet links, direct download URLs
+  - `type` selects the content to extract
+  - `select` is an optional boolean, `False` by default; when `True`, sends
+    a Cloudflare-hosted aria2 torrent file-selection page
 
 #### Queue Management
 - `/queue` - View your current download queue
@@ -163,6 +205,12 @@ subxtract/
 ├── bot.py                      # Main bot entry point
 ├── config.py                   # Configuration management
 ├── requirements.txt            # Python dependencies
+├── Dockerfile                  # Container image definition
+├── docker-compose.yml          # Docker Compose deployment
+├── web/                        # aria2 torrent file-selection web interface
+│   ├── server.py               # FastAPI and aria2 JSON-RPC server
+│   ├── nodes.py                # File/folder tree utilities
+│   └── templates/page.html     # HTML/CSS/JavaScript interface
 ├── extensions/                 # Discord bot command extensions
 │   ├── extractor.py           # Main extraction command
 │   ├── queue.py               # Queue display
@@ -187,12 +235,10 @@ subxtract/
 ├── schemas/                    # JSON schemas for validation
 │   └── mkvmerge_schema.json
 ├── data/                       # Runtime data storage
+│   ├── cloudflare_tunnel_url.txt # Current public web-interface URL
 │   ├── allowed_channels.json  # Channel permissions
 │   ├── current_download.json  # Active download state
 │   └── queue.json             # User download queues
-└── temp/                       # Temporary files
-    ├── downloads/             # Downloaded files
-    └── extracted/             # Extracted content
 ```
 
 ## How It Works
@@ -202,6 +248,8 @@ subxtract/
    - Aria2 downloads the content (supports torrents, magnets, direct links)
    - Bot tracks and displays real-time progress
    - Supports cancellation at any point
+   - With `select: True`, the bot sends a file-selection link after aria2
+     resolves torrent metadata
 
 2. **Extraction Phase**:
    - Scans downloaded files for MKV containers
@@ -218,6 +266,37 @@ subxtract/
    - Removes temporary files
    - Clears Aria2 download list
    - Resets state for next operation
+
+### Docker Compose Deployment
+
+The included [docker-compose.yml](docker-compose.yml) starts aria2, the
+FastAPI web interface, a Cloudflare Quick Tunnel, and the Discord bot.
+The tunnel URL is written to the mounted data directory for the bot to read.
+
+Create a `.env` file next to `docker-compose.yml`:
+
+```env
+DISCORD_TOKEN=your_discord_token
+APP_ID=your_bot_app_id
+USERID=1000
+GROUPID=1000
+SUBXTRACT_DATA_DIR=/home/your-user/docker/subxtract/data
+```
+
+Start and inspect the container:
+
+```bash
+docker compose up -d
+docker compose logs -f subxtract
+```
+
+The tunnel URL is saved at:
+
+```text
+/home/your-user/docker/subxtract/data/cloudflare_tunnel_url.txt
+```
+
+Stop the service with `docker compose down`.
 
 ## Configuration Details
 
@@ -237,6 +316,7 @@ subxtract/
 | `ALLOWED_CHANNELS_FILE` | Channel permissions file | `./data/allowed_channels.json` |
 | `CURRENT_DL_FILE` | Current download state file | `./data/current_download.json` |
 | `QUEUE_FILE` | User queues file | `./data/queue.json` |
+| `TUNNEL_URL_FILE` | Current Cloudflare tunnel URL file | `./data/cloudflare_tunnel_url.txt` |
 
 ## Development
 

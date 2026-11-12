@@ -27,6 +27,7 @@ ARG SCHEMAS_DIR=./schemas
 ARG ALLOWED_CHANNELS_FILE=./data/allowed_channels.json
 ARG CURRENT_DL_FILE=./data/current_download.json
 ARG QUEUE_FILE=./data/queue.json
+ARG TUNNEL_URL_FILE=./data/cloudflare_tunnel_url.txt
 
 # Install aria2 and optional utilities
 RUN apk add --no-cache aria2 mkvtoolnix mediainfo
@@ -52,7 +53,8 @@ RUN echo "DISCORD_TOKEN=${DISCORD_TOKEN}" >> .env && \
     echo "SCHEMAS_DIR=${SCHEMAS_DIR}" >> .env && \
     echo "ALLOWED_CHANNELS_FILE=${ALLOWED_CHANNELS_FILE}" >> .env && \
     echo "CURRENT_DL_FILE=${CURRENT_DL_FILE}" >> .env && \
-    echo "QUEUE_FILE=${QUEUE_FILE}" >> .env
+    echo "QUEUE_FILE=${QUEUE_FILE}" >> .env && \
+    echo "TUNNEL_URL_FILE=${TUNNEL_URL_FILE}" >> .env
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
