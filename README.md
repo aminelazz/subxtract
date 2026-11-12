@@ -207,6 +207,7 @@ subxtract/
 ├── requirements.txt            # Python dependencies
 ├── Dockerfile                  # Container image definition
 ├── docker-compose.yml          # Docker Compose deployment
+├── start.sh                    # Container runtime startup script
 ├── web/                        # aria2 torrent file-selection web interface
 │   ├── server.py               # FastAPI and aria2 JSON-RPC server
 │   ├── nodes.py                # File/folder tree utilities
