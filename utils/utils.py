@@ -467,7 +467,7 @@ async def download_and_extract(
                     logger.info("Torrent download with GID: %s has been cancelled.", gid)
                     return False
                 gid = status["followed_by_ids"][0]
-                message = await ctx.send(f"Metadata downloaded. New GID: `{gid}`")
+                await message.edit(content=f"Metadata download complete. Starting torrent download with GID: `{gid}`")
                 logger.info("Metadata downloaded, starting following download with GID: %s", gid)
                 if select:
                     selection_message = None
