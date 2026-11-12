@@ -218,6 +218,9 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             "Skipping %d selected file(s) that are not present in the download directory.",
             skipped_files,
         )
+    logger.info("Found %d candidate files for extraction in directory: %s", len(candidate_files), dir_path)
+    logger.info("Found %d downloaded files for extraction in directory: %s", len(downloaded_files), dir_path)
+    logger.info("Found %d skipped files for extraction in directory: %s", skipped_files, dir_path)
 
     # Only selected files that aria2 actually downloaded are processed.
     if not downloaded_files:
