@@ -1,6 +1,6 @@
 services:
   subxtract:
-    image: aminelazz/subxtract:dev
+    image: aminelazz/subxtract:latest
     container_name: subxtract
     environment:
       USERID: "${USERID:-1000}"

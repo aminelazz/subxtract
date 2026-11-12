@@ -27,4 +27,4 @@ jobs:
         context: .
         file: ./Dockerfile
         push: true
-        tags: aminelazz/subxtract:dev
+        tags: aminelazz/subxtract:latest
