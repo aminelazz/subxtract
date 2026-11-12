@@ -74,7 +74,7 @@ def get_files(gid: str) -> list[dict] | None:
         file_list = [
             f
             for f in file_list
-            if Path(f.get("path", "").lower()).is_file() and f.get("path", "").lower().endswith(('.mkv', '.mk3d', '.mka'))
+            if f.get("path", "").is_file() and str(f.get("path", "")).lower().endswith(('.mkv', '.mk3d', '.mka'))
         ]
         file_list.sort()
     except Exception as e:
