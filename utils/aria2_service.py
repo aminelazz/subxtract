@@ -61,6 +61,14 @@ def get_status(gid: str):
         "speed": task.download_speed_string()
     }
 
+def pause_download(gid: str):
+    """Pauses an aria2 download."""
+    return api.get_download(gid).pause()
+
+def resume_download(gid: str):
+    """Resumes an aria2 download."""
+    return api.get_download(gid).resume()
+
 def track_progress(gid: str):
     """Tracks the progress of a download by its GID."""
     download = api.get_download(gid)

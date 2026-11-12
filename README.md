@@ -249,7 +249,8 @@ subxtract/
    - Bot tracks and displays real-time progress
    - Supports cancellation at any point
    - With `select: True`, the bot sends a file-selection link after aria2
-     resolves torrent metadata
+     resolves torrent metadata, pauses the torrent, and resumes it after the
+     selection is submitted
 
 2. **Extraction Phase**:
    - Scans downloaded files for MKV containers
@@ -297,6 +298,10 @@ The tunnel URL is saved at:
 ```
 
 Stop the service with `docker compose down`.
+
+When selection is enabled, the torrent remains paused until the user submits
+the selection page. The 20 GB size check is performed after selection, before
+the selected torrent files continue downloading.
 
 ## Configuration Details
 

@@ -18,6 +18,7 @@ from web import nodes
 
 logger = logging.getLogger("web.server")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+MAX_DOWNLOAD_SIZE = 20 * 1024 * 1024 * 1024
 
 
 class Aria2RpcError(RuntimeError):
@@ -74,6 +75,9 @@ class Aria2RpcClient:
     async def changeOption(self, gid: str, options: dict[str, str]) -> Any:
         return await self.call("aria2.changeOption", gid, options)
 
+    async def resume(self, gid: str) -> Any:
+        return await self.call("aria2.unpause", gid)
+
 
 def _validate_pin(gid: str, pin: str) -> None:
     if not gid or not pin:
@@ -81,6 +85,25 @@ def _validate_pin(gid: str, pin: str) -> None:
     numeric = "".join(character for character in gid if character.isdigit())
     if len(numeric) < 4 or pin != numeric[:4]:
         raise HTTPException(status_code=403, detail="Invalid PIN.")
+
+
+def _selected_size(data: Any) -> int:
+    """Calculate the selected file size from the submitted aria2 tree."""
+    if isinstance(data, list):
+        return sum(_selected_size(item) for item in data)
+    if not isinstance(data, dict):
+        return 0
+    if data.get("type") == "file" and data.get("selected") is True:
+        try:
+            size = int(data.get("size", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Selected file sizes must be integers.") from exc
+        if size < 0:
+            raise ValueError("Selected file sizes cannot be negative.")
+        return size
+    if data.get("type") == "folder":
+        return _selected_size(data.get("children", []))
+    return 0
 
 
 @asynccontextmanager
@@ -147,7 +170,13 @@ async def submit_torrent_selection(
             raise HTTPException(status_code=400, detail="Select at least one file.")
         if set(selected) & set(unselected):
             raise ValueError("A file cannot be both selected and unselected.")
+        if _selected_size(data) > MAX_DOWNLOAD_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail="The selected files exceed the 20 GB download limit.",
+            )
         await app.state.aria2.changeOption(gid, {"select-file": ",".join(map(str, selected))})
+        await app.state.aria2.resume(gid)
         return {
             "engine": "aria2",
             "error": False,

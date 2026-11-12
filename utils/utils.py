@@ -141,7 +141,12 @@ def get_tunnel_url() -> str | None:
         return None
     return url
 
-async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool | None:
+async def download_file(
+    gid: str,
+    ctx: SlashContext,
+    message: Message,
+    check_size: bool = True,
+) -> bool | None:
     """Downloads a file and tracks its progress."""
     # Configure logging
     logger = get_logger("downloader")
@@ -155,7 +160,7 @@ async def download_file(gid: str, ctx: SlashContext, message: Message) -> bool |
             return True
         
         # Check for file size limit (Increased to 20 GB)
-        if status["full_size_bytes"] > 20 * 1024 * 1024 * 1024: # More than 20 GB
+        if check_size and status["full_size_bytes"] > 20 * 1024 * 1024 * 1024: # More than 20 GB
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
@@ -398,7 +403,7 @@ async def download_and_extract(
                 logger.info("Download with GID: %s has been cancelled.", gid)
                 return False
             # Check if complete
-            completed = await download_file(gid, ctx, message)
+            completed = await download_file(gid, ctx, message, check_size=not select)
             if completed is True:
                 break
             if completed is False:
@@ -439,6 +444,8 @@ async def download_and_extract(
                 message = await ctx.send(f"Metadata downloaded. New GID: `{gid}`")
                 logger.info("Metadata downloaded, starting following download with GID: %s", gid)
                 if select:
+                    aria2_service.pause_download(gid)
+                    logger.info("Paused torrent GID %s while waiting for file selection.", gid)
                     tunnel_url = get_tunnel_url()
                     if tunnel_url is None:
                         await ctx.send(
@@ -470,6 +477,22 @@ async def download_and_extract(
                         f"Select the torrent files before downloading:\n{selection_url}"
                     )
                     logger.info("Sent torrent file-selection URL for GID %s.", gid)
+                    await message.edit(
+                        content="Torrent paused. Waiting for the file selection..."
+                    )
+                    while True:
+                        if extraction_cancel_event.is_set():
+                            aria2_service.remove_all_downloads(force=True)
+                            file_utils.clear_current_dl()
+                            file_utils.clear_temp()
+                            await message.edit(content="Download has been cancelled.")
+                            logger.info("Torrent selection cancelled for GID %s.", gid)
+                            return False
+                        torrent_status = aria2_service.get_status(gid)
+                        if torrent_status["status"] != "paused":
+                            break
+                        await asyncio.sleep(2)
+                    logger.info("File selection submitted; resumed torrent GID %s.", gid)
                 status = aria2_service.get_status(gid)
                 #region Track Torrent progress
                 while status["status"] != "complete":
