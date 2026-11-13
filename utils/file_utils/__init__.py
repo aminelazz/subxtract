@@ -223,7 +223,10 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
     # Update or create new entry
     if existing_data is None:
         # No existing data, create new entry
-        data = [QueueObject(user_id=user_id, links=normalized_links)]
+        data = [QueueObject.from_dict({
+            "user_id": user_id,
+            "links": normalized_links
+        })]
         added = len(normalized_links)
         logger.info("Creating new queue file with user %s and %d links.", user_id, added)
     else:
@@ -233,7 +236,10 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
         user_queue = next((item for item in data if item.user_id == user_id), None)
         # If not found, create a new user queue
         if user_queue is None:
-            user_queue = QueueObject(user_id=user_id, links=normalized_links)
+            user_queue = QueueObject.from_dict({
+                "user_id": user_id,
+                "links": normalized_links
+            })
             data.append(user_queue)
             added = len(normalized_links)
             logger.info("Adding new user %s to queue with %d links.", user_id, added)
