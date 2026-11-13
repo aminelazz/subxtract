@@ -18,15 +18,15 @@ from utils.logger import get_logger
 def get_download_status_message(status: aria2_service.DownloadStatus, gid: str) -> str:
     """Generates a status message for a download."""
     return (
-        f"┏**{status["name"]}**\n"
+        f"┏**{status['name']}**\n"
         f"┠**GID:** `{gid}`\n"
-        f"┠**Status:** {status["status"]}\n"
-        f"┠**Progress:** {status["progress"]}\n"
-        f"┠**Processed:** {status["downloaded_size"]} of {status["total_size"]}\n"
-        f"┠**Speed:** {status.get("speed", "N/A")}\n"
-        f"┠**ETA:** {status.get("eta", "N/A")}"
-        f"┠**Seeders:** {status.get("seeders", "N/A")}\n"
-        f"┖**Total Files:** {status.get("num_files", "N/A")}\n"
+        f"┠**Status:** {status['status']}\n"
+        f"┠**Progress:** {status['progress']}\n"
+        f"┠**Processed:** {status['downloaded_size']} of {status['total_size']}\n"
+        f"┠**Speed:** {status['speed']}\n"
+        f"┠**ETA:** {status['eta']}\n"
+        f"┠**Seeders:** {status['seeders']}\n"
+        f"┖**Total Files:** {status['num_selected_files']}"
     )
 
 def remove_duplicates_preserve_order(links: list[str]) -> list[str]:

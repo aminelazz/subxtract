@@ -48,10 +48,10 @@ class Help(Extension):
         # embed.set_author(name="Available commands", icon_url=bot.user.avatar.url)
         for cmd in cmds:
             params: list[dict] = cmd.get("options", [])
-            params_str = " ".join([f"[{p.get("name", "")}]" for p in params])
+            params_str = " ".join([f"[{p.get('name', '')}]" for p in params])
             embed.add_field(
-                name=f"/{cmd["name"]} {params_str}",
-                value=cmd["description"],
+                name=f"/{cmd['name']} {params_str}",
+                value=cmd['description'],
                 inline=False
             )
         # embed.set_footer(text="This is the footer of the embed.")
