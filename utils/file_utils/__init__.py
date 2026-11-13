@@ -241,7 +241,7 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
             logger.info("Updating user %s queue with %d links.", user_id, added)
 
     data = [item.to_dict() for item in data]  # Ensure all items are QueueObject
-    logger.debug("Saving queue data to %s: %s", str(file_path), data)  # Debug log
+    logger.info("Saving queue data to %s: %s", str(file_path), data)  # Debug log
 
     # Save back to file
     os.makedirs(file_path.parent, exist_ok=True)
