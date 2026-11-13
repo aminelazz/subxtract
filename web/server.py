@@ -151,6 +151,7 @@ async def get_torrent_files(
         return {"files": nodes.create_list(tree), "engine": "aria2", "error": False, "message": ""}
     except (Aria2RpcError, ValueError) as exc:
         logger.exception("Could not retrieve aria2 files for gid %s", gid)
+        print(f"Error retrieving aria2 files for gid {gid}: {exc}")
         return JSONResponse(
             status_code=502,
             content={"files": [], "engine": "aria2", "error": True, "message": str(exc)},
@@ -207,6 +208,7 @@ async def submit_torrent_selection(
         raise
     except (Aria2RpcError, ValueError, TypeError) as exc:
         logger.exception("Could not apply aria2 selection for gid %s", gid)
+        print(f"Error applying aria2 selection for gid {gid}: {exc}")
         return JSONResponse(
             status_code=502,
             content={"engine": "aria2", "error": True, "message": str(exc)},
