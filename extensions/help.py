@@ -45,12 +45,12 @@ class Help(Extension):
         # Only set thumbnail if it's a well-formed http(s) URL
         if thumbnail_url and (thumbnail_url.startswith("http://") or thumbnail_url.startswith("https://")):
             embed.set_thumbnail(url=thumbnail_url)
-        # embed.set_author(name='Available commands', icon_url=bot.user.avatar.url)
+        # embed.set_author(name="Available commands", icon_url=bot.user.avatar.url)
         for cmd in cmds:
             params: list[dict] = cmd.get("options", [])
-            params_str = " ".join([f"[{p.get('name', '')}]" for p in params])
+            params_str = " ".join([f"[{p.get("name", "")}]" for p in params])
             embed.add_field(
-                name=f'/{cmd["name"]} {params_str}',
+                name=f"/{cmd["name"]} {params_str}",
                 value=cmd["description"],
                 inline=False
             )

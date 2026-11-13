@@ -15,18 +15,18 @@ from utils import aria2_service, file_utils, mkv_service
 from utils.controller import extraction_cancel_event
 from utils.logger import get_logger
 
-def get_download_status_message(status: dict, gid: str) -> str:
+def get_download_status_message(status: aria2_service.DownloadStatus, gid: str) -> str:
     """Generates a status message for a download."""
     return (
-        f"┏**{status['name']}**\n"
-        f"┠**Progress:** {status['progress']}\n"
+        f"┏**{status["name"]}**\n"
         f"┠**GID:** `{gid}`\n"
-        f"┠**Processed:** {status.get('downloaded_size', '0B')} of {status.get('full_size', '0B')}\n"
-        f"┠**Status:** {status['status']}\n"
-        f"┠**Speed:** {status.get('speed', 'N/A')}\n"
-        f"┠**Seeders:** {status.get('seeders', 'N/A')}\n"
-        f"┠**Total Files:** {status.get('num_files', 'N/A')}\n"
-        f"┖**ETA:** {status.get('eta', 'N/A')}"
+        f"┠**Status:** {status["status"]}\n"
+        f"┠**Progress:** {status["progress"]}\n"
+        f"┠**Processed:** {status.get("downloaded_size", "0B")} of {status.get("total_size", "0B")}\n"
+        f"┠**Speed:** {status.get("speed", "N/A")}\n"
+        f"┠**ETA:** {status.get("eta", "N/A")}"
+        f"┠**Seeders:** {status.get("seeders", "N/A")}\n"
+        f"┖**Total Files:** {status.get("num_files", "N/A")}\n"
     )
 
 def remove_duplicates_preserve_order(links: list[str]) -> list[str]:
@@ -58,11 +58,11 @@ def get_bot_infos():
     app_id = APP_ID
 
     # URL to make the GET request to
-    url = f'https://discord.com/api/v9/applications/{app_id}'
+    url = f"https://discord.com/api/v9/applications/{app_id}"
 
     # Construct the headers with the authorization token
     headers = {
-        'Authorization': f'Bot {bot_token}'
+        "Authorization": f"Bot {bot_token}"
     }
 
     # Perform the GET request with the headers
@@ -77,11 +77,11 @@ def get_commands():
     app_id = APP_ID
 
     # URL to make the GET request to
-    url = f'https://discord.com/api/v9/applications/{app_id}/commands'
+    url = f"https://discord.com/api/v9/applications/{app_id}/commands"
 
     # Construct the headers with the authorization token
     headers = {
-        'Authorization': f'Bot {bot_token}'
+        "Authorization": f"Bot {bot_token}"
     }
 
     # Perform the GET request with the headers
@@ -115,7 +115,7 @@ def get_nyaa_torrent_link(url: str) -> str | None:
         return None
 
     try:
-        match = re.match(r'https?://nyaa\.si/view/(?P<id>\d+)', url)
+        match = re.match(r"https?://nyaa\.si/view/(?P<id>\d+)", url)
         if match:
             torrent_id = match.group("id")
             logger.info("Successfully got torrent link from nyaa.si: %s", url)
@@ -159,7 +159,7 @@ async def download_file(
             return True
         
         # Check for file size limit (Increased to 20 GB)
-        if check_size and status["full_size_bytes"] > 20 * 1024 * 1024 * 1024: # More than 20 GB
+        if check_size and status["total_size_bytes"] > 20 * 1024 * 1024 * 1024: # More than 20 GB
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
@@ -172,9 +172,9 @@ async def download_file(
         # Check for errors in status
         if status["status"] == "error":
             await message.edit(
-                content=f"Download error: {status.get('error', 'Unknown error')}"
+                content=f"Download error: {status.get("error", "Unknown error")}"
             )
-            logger.error("Download error: %s", status.get('error', 'Unknown error'))
+            logger.error("Download error: %s", status.get("error", "Unknown error"))
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
@@ -312,7 +312,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                 summary += f"Attachments: {zipped_attachments.count if zipped_attachments else 0}\n"
             
             if extraction_type in ["chapters", "all", "all_without_audio"]:
-                summary += f"Chapters: {chapters.get('count') if chapters else 0}\n"
+                summary += f"Chapters: {chapters.get("count") if chapters else 0}\n"
             
             if extraction_type in ["audio", "all"]:
                 summary += f"Audio Tracks: {zipped_audio.count if zipped_audio else 0}\n"
@@ -323,13 +323,13 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             merge_commands = ""
             
             if extraction_type in ["subtitles", "all", "all_without_audio"] and zipped_subs and len(zipped_subs.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_subs.paths, 'subs')}\n"
+                merge_commands += f"{get_merge_commands(zipped_subs.paths, "subs")}\n"
             
             if extraction_type in ["attachments", "all", "all_without_audio"] and zipped_attachments and len(zipped_attachments.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_attachments.paths, 'attachments')}\n"
+                merge_commands += f"{get_merge_commands(zipped_attachments.paths, "attachments")}\n"
             
             if extraction_type in ["audio", "all"] and zipped_audio and len(zipped_audio.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_audio.paths, 'audio')}\n"
+                merge_commands += f"{get_merge_commands(zipped_audio.paths, "audio")}\n"
 
             if merge_commands:
                 merge_commands_path = file_utils.save_file_to_extract_dir(
@@ -429,8 +429,8 @@ async def download_and_extract(
         try:
             status = aria2_service.get_status(gid)
             if status["status"] != "complete":
-                await ctx.send(f"Download failed or incomplete. Current status: {status['status']}")
-                logger.error("Download failed or incomplete. Current status: %s", status['status'])
+                await ctx.send(f"Download failed or incomplete. Current status: {status["status"]}")
+                logger.error("Download failed or incomplete. Current status: %s", status["status"])
                 aria2_service.remove_all_downloads(force=True)
                 file_utils.clear_current_dl()
                 file_utils.clear_temp()

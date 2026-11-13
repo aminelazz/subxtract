@@ -63,7 +63,7 @@ class Aria2RpcClient:
         if "error" in body:
             error = body["error"]
             raise Aria2RpcError(
-                f"aria2 RPC error {error.get('code')}: {error.get('message')}"
+                f"aria2 RPC error {error.get("code")}: {error.get("message")}"
             )
         return body.get("result")
 
@@ -195,7 +195,7 @@ async def submit_torrent_selection(
             await asyncio.sleep(0.25)
         else:
             raise Aria2RpcError(
-                f"aria2 did not confirm the torrent resumed; status is {resumed_status or 'unknown'}"
+                f"aria2 did not confirm the torrent resumed; status is {resumed_status or "unknown"}"
             )
         return {
             "engine": "aria2",

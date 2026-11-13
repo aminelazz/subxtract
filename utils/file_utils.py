@@ -120,7 +120,7 @@ def get_temp_files(path: Path) -> dict[str, list[str]] | None:
             file_list.append(full_path)
 
     # Remove all files except matroska files
-    file_list = [f for f in file_list if f.lower().endswith(('.mkv', '.mk3d', '.mka'))]
+    file_list = [f for f in file_list if f.lower().endswith((".mkv", ".mk3d", ".mka"))]
     file_list.sort()
 
     # Return a dict containing file with full paths & relative paths

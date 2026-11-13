@@ -105,12 +105,12 @@ class MKVService:
                         # Construct output path
                         out_path = os.path.join(
                             output_dir,
-                            f"subtitle_{s_id['id']}.{subtitle_language}.{extension}"
+                            f"subtitle_{s_id["id"]}.{subtitle_language}.{extension}"
                         )
 
                         # Command to extract subtitle track
                         subprocess.run(
-                            ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"],
+                            ["mkvextract", filepath, "tracks", f"{s_id["id"]}:{out_path}"],
                             check=True,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL
@@ -203,7 +203,7 @@ class MKVService:
                         extension = "bin"
                     
                     # Get attachment name and sanitize it
-                    attachment_name = a_id.get("file_name", f"attachment_{a_id['id']}")
+                    attachment_name = a_id.get("file_name", f"attachment_{a_id["id"]}")
                     
                     # Ensure the filename is not too long by truncating if necessary
                     name_without_ext = os.path.splitext(attachment_name)[0][:50]
@@ -212,7 +212,7 @@ class MKVService:
                     out_path = os.path.join(output_dir, safe_filename)
                     
                     subprocess.run(
-                        ["mkvextract", filepath, "attachments", f"{a_id['id']}:{out_path}"],
+                        ["mkvextract", filepath, "attachments", f"{a_id["id"]}:{out_path}"],
                         check=True,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
@@ -350,15 +350,15 @@ class MKVService:
 
                         # Naming: single track as "audio", multiple tracks as "audio_2", "audio_3", etc.
                         if audio_track_number == 1:
-                            audio_name = f"audio_{a_id['id']}.{audio_language}.{extension}"
+                            audio_name = f"audio_{a_id["id"]}.{audio_language}.{extension}"
                         else:
-                            audio_name = f"audio_{audio_track_number}_{a_id['id']}.{audio_language}.{extension}"
+                            audio_name = f"audio_{audio_track_number}_{a_id["id"]}.{audio_language}.{extension}"
 
                         out_path = os.path.join(output_dir, audio_name)
 
                         # Command to extract audio track
                         subprocess.run(
-                            ["mkvextract", filepath, "tracks", f"{a_id['id']}:{out_path}"],
+                            ["mkvextract", filepath, "tracks", f"{a_id["id"]}:{out_path}"],
                             check=True,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL
@@ -420,13 +420,13 @@ class MKVService:
         extracted_files = []
         for t_id in info.get("tracks", []):
             if t_id.get("type") == "video":
-                out_path = os.path.join(output_dir, f"track_{t_id['id']}.mkv")
+                out_path = os.path.join(output_dir, f"track_{t_id["id"]}.mkv")
                 subprocess.run(
-                    ["mkvextract", "tracks", filepath, f"{t_id['id']}:{out_path}"],
+                    ["mkvextract", "tracks", filepath, f"{t_id["id"]}:{out_path}"],
                     check=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
-                logger.info("Extracted video track %d.", t_id['id'])
+                logger.info("Extracted video track %d.", t_id["id"])
                 extracted_files.append(out_path)
         return extracted_files
