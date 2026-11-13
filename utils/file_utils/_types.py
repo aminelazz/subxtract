@@ -118,6 +118,9 @@ class QueueObject(NamedTuple):
             elif isinstance(item, QueueItem):
                 # New format: already a QueueItem
                 normalized.append(QueueItem(link=item.link, type=item.type))
+            elif isinstance(item, dict):
+                # New format: dict with link and type
+                normalized.append(QueueItem(link=item.get("link", ""), type=item.get("type", "all_without_audio")))
         return normalized
 
     def to_dict(self) -> dict[str, str | list]:
