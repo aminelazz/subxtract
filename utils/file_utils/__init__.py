@@ -175,7 +175,7 @@ def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
             })
             for item in data
         ]
-        logger.info("Loaded queue data from %s: %s", str(file_path), str(queue))  # Debug log
+        # logger.info("Loaded queue data from %s: %s", str(file_path), str(queue))  # Debug log
         return queue
     except (json.JSONDecodeError, TypeError) as e:
         logger.error("Error loading queue: %s", e)
@@ -256,7 +256,7 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
             })
             data.append(user_queue)  # Add updated entry
             logger.info("Updating user %s queue with %d links.", user_id, added)
-            logger.info("Saving queue data to %s: %s", str(file_path), str(data))  # Debug log
+            # logger.info("Saving queue data to %s: %s", str(file_path), str(data))  # Debug log
 
     data = [item.to_dict() for item in data]  # Ensure all items are QueueObject
 
