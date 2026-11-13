@@ -1,6 +1,6 @@
 """Type definitions for file utility data structures."""
 
-from typing import NamedTuple, Self
+from typing import NamedTuple
 
 class AllowedChannelsType(NamedTuple):
     """Type definition for allowed channels data structure."""
@@ -9,7 +9,7 @@ class AllowedChannelsType(NamedTuple):
     """All allowed channels, grouped by guild."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> Self:
+    def from_dict(cls, data: dict) -> "AllowedChannelsType":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             allowed_channels=list(
@@ -49,7 +49,7 @@ class CurrentDLObject(NamedTuple):
     """The guild ID associated with the download."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> Self:
+    def from_dict(cls, data: dict) -> "CurrentDLObject":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             gid=data.get("gid", ""),
@@ -74,7 +74,7 @@ class QueueItem(NamedTuple):
     """The extraction type associated with the queue item."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> Self:
+    def from_dict(cls, data: dict) -> "QueueItem":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             link=data.get("link", ""),
@@ -99,7 +99,7 @@ class QueueObject(NamedTuple):
     """A list of QueueItem objects associated with the queue, always in new format."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> Self:
+    def from_dict(cls, data: dict) -> "QueueObject":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             user_id=data.get("user_id", ""),
