@@ -2,7 +2,7 @@
 
 from interactions import Extension, SlashContext, OptionType
 from interactions import slash_command, slash_option, check
-from utils import aria2_service, utils, file_utils
+from utils import aria2_service, core, file_utils
 from utils.logger import get_logger
 
 # Configure logging
@@ -11,7 +11,7 @@ logger = get_logger("extractor")
 class Extractor(Extension):
     """Extension for downloading, managing MKV extraction and upload."""
     @slash_command()
-    @check(utils.is_allowed_channel)
+    @check(core.is_allowed_channel)
     @slash_option(
         name="url",
         description="The URL of the torrent or magnet link or direct download link to download.",
@@ -44,7 +44,7 @@ class Extractor(Extension):
         await ctx.defer()
 
         # Start download and extraction process
-        completed = await utils.download_and_extract(
+        completed = await core.download_and_extract(
             ctx, url, extraction_type=type, select=select
         )
 

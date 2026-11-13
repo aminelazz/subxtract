@@ -3,7 +3,7 @@
 from interactions import Extension, slash_command, check, SlashContext
 from utils import file_utils
 from utils.logger import get_logger
-from utils.utils import is_allowed_channel
+from utils.core import is_allowed_channel
 
 # Configure logging
 logger = get_logger("status")

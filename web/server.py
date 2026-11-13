@@ -122,6 +122,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Subxtract aria2 file selection", lifespan=lifespan)
+logger.info("Subxtract aria2 file selection server initialized.")
 
 
 @app.get("/app/files")

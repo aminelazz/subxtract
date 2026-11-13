@@ -8,90 +8,9 @@ import json
 from config import TEMP_DIR, EXTRACT_DIR, DOWNLOAD_DIR
 from config import ALLOWED_CHANNELS_FILE, CURRENT_DL_FILE, QUEUE_FILE
 from utils.logger import get_logger
+from ._types import AllowedChannelsType, GuildObject, CurrentDLObject, QueueItem, QueueObject
 
 DISCORD_MAX_FILE_SIZE = 20 * 1024 * 1024
-
-# Define return type for allowed channels
-# will be like this:
-# {"allowed_channels": [{"guild": guild_id, "channels": [channel_id1, channel_id2]}, ...]}
-class AllowedChannelsType(dict):
-    """Type definition for allowed channels data structure."""
-    allowed_channels: list["GuildObject"]
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.allowed_channels = [GuildObject(**guild) for guild in data.get("allowed_channels", [])]
-
-    def dict(self):
-        """Converts the AllowedChannelsType to a dictionary."""
-        return {
-            "allowed_channels": [dict(guild) for guild in self.allowed_channels]
-        }
-
-class GuildObject(dict):
-    """Type definition for guild object in allowed channels."""
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.guild = data.get("guild", "")
-        self.channels = data.get("channels", [])
-
-    guild: str
-    channels: list[str]
-
-class CurrentDLObject(dict):
-    """Type definition for current download object."""
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.gid = data.get("gid", "")
-        self.user_id = data.get("user_id", "")
-        self.guild_id = data.get("guild_id", "")
-
-    gid: str
-    user_id: str
-    guild_id: str
-
-class QueueItem(dict):
-    """Type definition for a single queue item with link and extraction type."""
-    def __init__(self, **data):
-        super().__init__(**data)
-        # Handle both old format (string) and new format (dict)
-        if isinstance(data.get("link"), dict):
-            self.link = data["link"].get("link", "")
-            self.type = data["link"].get("type", "all_without_audio")
-        else:
-            self.link = data.get("link", "")
-            self.type = data.get("type", "all_without_audio")
-
-    link: str
-    type: str
-
-class QueueObject(dict):
-    """Type definition for queue object."""
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.user_id = data.get("user_id", "")
-        # Convert links to new format if old format detected
-        raw_links = data.get("links", [])
-        self.links = self._normalize_links(raw_links)
-
-    user_id: str
-    links: list[dict]
-
-    @staticmethod
-    def _normalize_links(links: list) -> list[dict]:
-        """Converts links to new format {link, type} if needed."""
-        normalized = []
-        for item in links:
-            if isinstance(item, str):
-                # Old format: just a link string
-                normalized.append({"link": item, "type": "all_without_audio"})
-            elif isinstance(item, dict):
-                # New format: already a dict
-                normalized.append({
-                    "link": item.get("link", ""),
-                    "type": item.get("type", "all_without_audio")
-                })
-        return normalized
 
 def clear_temp(path: Path = Path(TEMP_DIR)):
     """Clears the temporary directory."""
@@ -120,7 +39,7 @@ def get_temp_files(path: Path) -> dict[str, list[str]] | None:
             file_list.append(full_path)
 
     # Remove all files except matroska files
-    file_list = [f for f in file_list if f.lower().endswith(('.mkv', '.mk3d', '.mka'))]
+    file_list = [f for f in file_list if f.lower().endswith((".mkv", ".mk3d", ".mka"))]
     file_list.sort()
 
     # Return a dict containing file with full paths & relative paths
@@ -157,15 +76,15 @@ def save_file_to_extract_dir(content: bytes, filename: str):
 
 def save_current_dl(gid="", user_id="", guild_id="", file_path: Path = Path(CURRENT_DL_FILE)):
     """Saves the current download GID to a file."""
-    data = {
-        "gid": gid,
-        "user_id": user_id,
-        "guild_id": guild_id
-    }
+    data: CurrentDLObject = CurrentDLObject(
+        gid=gid,
+        user_id=user_id,
+        guild_id=guild_id
+    )
 
     os.makedirs(file_path.parent, exist_ok=True)
     with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+        json.dump(data.to_dict(), f, ensure_ascii=False, indent=4)
 
 def load_current_dl(file_path: Path = Path(CURRENT_DL_FILE)) -> CurrentDLObject | None:
     """Loads the current download GID from a file."""
@@ -173,8 +92,8 @@ def load_current_dl(file_path: Path = Path(CURRENT_DL_FILE)) -> CurrentDLObject 
         return None
 
     with open(file_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return CurrentDLObject(**data)
+        data: dict[str, str] = json.load(f)
+    return CurrentDLObject.from_dict(data)
 
 def clear_current_dl(file_path: Path = Path(CURRENT_DL_FILE)):
     """Clears the current download file."""
@@ -186,10 +105,11 @@ def load_allowed_channels(file_path: Path = Path(ALLOWED_CHANNELS_FILE)) -> Allo
     try:
         if not file_path.exists():
             return None
+        data: dict[str, list] = {}
 
         with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return AllowedChannelsType(**data)
+            data: dict[str, list] = json.load(f)
+        return AllowedChannelsType.from_dict(data)
     except (json.JSONDecodeError, TypeError):
         return None
     except Exception:
@@ -214,7 +134,7 @@ def save_allowed_channels(guild_id: str, channel_id: str, file_path: Path = Path
 
     # Save the updated data back to the file
     with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(data.dict(), f, ensure_ascii=False, indent=4)
+        json.dump(data.to_dict(), f, ensure_ascii=False, indent=4)
 
 def remove_allowed_channel(guild_id: str, channel_id: str, file_path: Path = Path(ALLOWED_CHANNELS_FILE)):
     """Removes a channel ID from the allowed channels file."""
@@ -235,7 +155,7 @@ def remove_allowed_channel(guild_id: str, channel_id: str, file_path: Path = Pat
 
         # Save the updated data back to the file
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data.dict(), f, ensure_ascii=False, indent=4)
+            json.dump(data.to_dict(), f, ensure_ascii=False, indent=4)
 
 def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
     """Loads the download queue from a file."""
@@ -248,7 +168,15 @@ def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
 
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return [QueueObject(**item) for item in data]
+        queue = [
+            QueueObject.from_dict({
+                "user_id": item.get("user_id", ""),
+                "links": item.get("links", [])
+            })
+            for item in data
+        ]
+        # logger.info("Loaded queue data from %s: %s", str(file_path), str(queue))  # Debug log
+        return queue
     except (json.JSONDecodeError, TypeError) as e:
         logger.error("Error loading queue: %s", e)
         return None
@@ -266,7 +194,7 @@ def get_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)) -> QueueObj
     user_queue = next((item for item in data if item.user_id == user_id), None)
     return user_queue
 
-def save_queue(user_id: str, links: list, file_path: Path = Path(QUEUE_FILE), extraction_type: str = "all_without_audio") -> int:
+def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path = Path(QUEUE_FILE), extraction_type: str = "all_without_audio") -> int:
     """Saves the download queue to a file.
     
     Args:
@@ -279,15 +207,15 @@ def save_queue(user_id: str, links: list, file_path: Path = Path(QUEUE_FILE), ex
     logger = get_logger("save_queue_utils")
 
     # Convert links to new format if needed
-    normalized_links = []
+    normalized_links: list[QueueItem] = []
     for link in links:
         if isinstance(link, str):
-            normalized_links.append({"link": link, "type": extraction_type})
-        elif isinstance(link, dict):
-            normalized_links.append({
-                "link": link.get("link", ""),
-                "type": link.get("type", extraction_type)
-            })
+            normalized_links.append(QueueItem(link=link, type=extraction_type))
+        elif isinstance(link, QueueItem):
+            normalized_links.append(QueueItem(
+                link=link.link,
+                type=link.type if hasattr(link, 'type') else extraction_type
+            ))
 
     # Load existing data
     existing_data = load_queue(file_path)
@@ -295,7 +223,10 @@ def save_queue(user_id: str, links: list, file_path: Path = Path(QUEUE_FILE), ex
     # Update or create new entry
     if existing_data is None:
         # No existing data, create new entry
-        data = [QueueObject(user_id=user_id, links=normalized_links)]
+        data = [QueueObject.from_dict({
+            "user_id": user_id,
+            "links": normalized_links
+        })]
         added = len(normalized_links)
         logger.info("Creating new queue file with user %s and %d links.", user_id, added)
     else:
@@ -305,20 +236,29 @@ def save_queue(user_id: str, links: list, file_path: Path = Path(QUEUE_FILE), ex
         user_queue = next((item for item in data if item.user_id == user_id), None)
         # If not found, create a new user queue
         if user_queue is None:
-            user_queue = QueueObject(user_id=user_id, links=normalized_links)
+            user_queue = QueueObject.from_dict({
+                "user_id": user_id,
+                "links": normalized_links
+            })
             data.append(user_queue)
             added = len(normalized_links)
             logger.info("Adding new user %s to queue with %d links.", user_id, added)
         # If found, update the links (avoid duplicates)
         else:
-            existing_link_urls = {item["link"] for item in user_queue.links}
-            new_items = [item for item in normalized_links if item["link"] not in existing_link_urls]
-            new_links = user_queue.links + new_items
+            existing_link_urls = {item.link for item in user_queue.links_dict}
+            new_items = [item for item in normalized_links if item.link not in existing_link_urls]
+            new_links = user_queue.links_dict + new_items
             added = len(new_items)
             data = [item for item in data if item.user_id != user_id]  # Remove old entry
-            user_queue = QueueObject(user_id=user_id, links=new_links) # Create updated entry
+            user_queue = QueueObject.from_dict({
+                "user_id": user_id,
+                "links": new_links
+            })
             data.append(user_queue)  # Add updated entry
             logger.info("Updating user %s queue with %d links.", user_id, added)
+            # logger.info("Saving queue data to %s: %s", str(file_path), str(data))  # Debug log
+
+    data = [item.to_dict() for item in data]  # Ensure all items are QueueObject
 
     # Save back to file
     os.makedirs(file_path.parent, exist_ok=True)
@@ -340,12 +280,13 @@ def remove_from_queue(user_id: str, links: list[str], file_path: Path = Path(QUE
     if user_queue is not None:
         # Extract just the link URLs for comparison
         links_to_remove = set(links)
-        new_links = [item for item in user_queue.links if item.get("link", item) not in links_to_remove]
-        difference = len(user_queue.links) - len(new_links)
+        new_links = [item for item in user_queue.links_dict if item.link not in links_to_remove]
+        difference = len(user_queue.links_dict) - len(new_links)
         
         # If the user's queue is empty, remove it
         if not new_links:
             data.remove(user_queue)
+            data = [item.to_dict() for item in data]  # Ensure all items are QueueObject
             # Save and return
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
@@ -353,10 +294,14 @@ def remove_from_queue(user_id: str, links: list[str], file_path: Path = Path(QUE
 
         # Update the user's queue in the data
         data = [item for item in data if item.user_id != user_id]  # Remove old entry
-        user_queue = QueueObject(user_id=user_id, links=new_links) # Create updated entry
+        user_queue = QueueObject.from_dict({
+            "user_id": user_id,
+            "links": new_links
+        })  # Create updated entry
         data.append(user_queue)  # Add updated entry
 
     # Save the updated data back to the file
+    data = [item.to_dict() for item in data]  # Ensure all items are QueueObject
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
@@ -369,7 +314,7 @@ def clear_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)):
         return
 
     # Remove the user's queue
-    data = [item for item in data if item.user_id != user_id]
+    data = [item.to_dict() for item in data if item.user_id != user_id]
 
     # Save the updated data back to the file
     with open(file_path, "w", encoding="utf-8") as f:

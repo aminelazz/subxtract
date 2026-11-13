@@ -2,7 +2,7 @@
 
 from interactions import Extension, SlashContext, OptionType
 from interactions import slash_command, slash_option, check
-from utils import aria2_service, utils, file_utils
+from utils import aria2_service, core, file_utils
 from utils.logger import get_logger
 from utils.controller import extraction_cancel_event
 
@@ -14,7 +14,7 @@ class StartQueue(Extension):
     Extension for downloading, managing MKV extraction and upload for multiple links in a queue.
     """
     @slash_command()
-    @check(utils.is_allowed_channel)
+    @check(core.is_allowed_channel)
     @slash_option(
         name="type",
         description="Choose what to extract from all MKV files in the queue.",
@@ -36,14 +36,14 @@ class StartQueue(Extension):
         # Get the queue
         queue = file_utils.get_user_queue(str(ctx.author.id))
 
-        if not queue or not queue.links:
+        if not queue or not queue.links_dict:
             await ctx.send(
                 f"{ctx.author.mention}, "
                 f"Your queue is empty. Please add links to the queue before starting the download."
             )
             return
 
-        queue_items = queue.links.copy()
+        queue_items = queue.links_dict.copy()
         links_size = len(queue_items)
 
         logger.info(
@@ -56,7 +56,7 @@ class StartQueue(Extension):
         # Start download and extraction process
         for queue_item in queue_items:
             # Extract link from queue item (supports both old string format and new dict format)
-            url = queue_item.get("link", queue_item) if isinstance(queue_item, dict) else queue_item
+            url = queue_item.link
             extraction_type = type  # Use selected type for all links
 
             # Check for cancellation
@@ -68,12 +68,12 @@ class StartQueue(Extension):
                 break
 
             logger.info("Starting download and extraction for URL: %s with extraction type: %s", url, extraction_type)
-            completed = await utils.download_and_extract(ctx, url, extraction_type=extraction_type)
+            completed = await core.download_and_extract(ctx, url, extraction_type=extraction_type)
 
             # Check if completed successfully
             if completed is True:
                 # Remove the specific URL from queue
-                queue_items_remaining = [item for item in queue_items if (item.get("link") if isinstance(item, dict) else item) != url]
+                queue_items_remaining = [item for item in queue_items if item.link != url]
                 file_utils.clear_user_queue(str(ctx.author.id))
                 file_utils.save_queue(str(ctx.author.id), queue_items_remaining)
                 logger.info("Extraction process completed for (%d/%d) links.", i, links_size)

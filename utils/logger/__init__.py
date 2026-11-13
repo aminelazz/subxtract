@@ -7,8 +7,8 @@ def get_logger(name: str) -> logging.Logger:
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
-        datefmt='%d-%m-%Y %H:%M:%S',
-        format='[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s'
+        datefmt="%d-%m-%Y %H:%M:%S",
+        format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     )
     logger = logging.getLogger(name)
     return logger

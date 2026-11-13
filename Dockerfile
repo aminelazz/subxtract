@@ -34,6 +34,9 @@ RUN apk add --no-cache aria2 mkvtoolnix mediainfo
 
 # Copy subxtract from the clone stage
 COPY --from=clone-subxtract /subxtract /subxtract
+# Replace the image's startup script with the local container entrypoint
+COPY start.sh /subxtract/start.sh
+RUN chmod +x /subxtract/start.sh
 
 # Expose aria2 RPC port
 EXPOSE 6800
@@ -42,49 +45,54 @@ EXPOSE 6800
 WORKDIR /subxtract
 
 # Populate .env file
-RUN echo "DISCORD_TOKEN=${DISCORD_TOKEN}" >> .env && \
-    echo "APP_ID=${APP_ID}" >> .env && \
-    echo "ARIA2_RPC_HOST=${ARIA2_RPC_HOST}" >> .env && \
-    echo "ARIA2_RPC_PORT=${ARIA2_RPC_PORT}" >> .env && \
-    echo "ARIA2_RPC_SECRET=${ARIA2_RPC_SECRET}" >> .env && \
-    echo "TEMP_DIR=${TEMP_DIR}" >> .env && \
-    echo "DOWNLOAD_DIR=${DOWNLOAD_DIR}" >> .env && \
-    echo "EXTRACT_DIR=${EXTRACT_DIR}" >> .env && \
-    echo "SCHEMAS_DIR=${SCHEMAS_DIR}" >> .env && \
-    echo "ALLOWED_CHANNELS_FILE=${ALLOWED_CHANNELS_FILE}" >> .env && \
-    echo "CURRENT_DL_FILE=${CURRENT_DL_FILE}" >> .env && \
-    echo "QUEUE_FILE=${QUEUE_FILE}" >> .env && \
-    echo "TUNNEL_URL_FILE=${TUNNEL_URL_FILE}" >> .env
+RUN cat > .env <<EOF
+DISCORD_TOKEN=${DISCORD_TOKEN}
+APP_ID=${APP_ID}
+ARIA2_RPC_HOST=${ARIA2_RPC_HOST}
+ARIA2_RPC_PORT=${ARIA2_RPC_PORT}
+ARIA2_RPC_SECRET=${ARIA2_RPC_SECRET}
+TEMP_DIR=${TEMP_DIR}
+DOWNLOAD_DIR=${DOWNLOAD_DIR}
+EXTRACT_DIR=${EXTRACT_DIR}
+SCHEMAS_DIR=${SCHEMAS_DIR}
+ALLOWED_CHANNELS_FILE=${ALLOWED_CHANNELS_FILE}
+CURRENT_DL_FILE=${CURRENT_DL_FILE}
+QUEUE_FILE=${QUEUE_FILE}
+TUNNEL_URL_FILE=${TUNNEL_URL_FILE}
+EOF
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create entrypoint script to handle dynamic user creation
-RUN echo '#!/bin/sh' > /entrypoint.sh && \
-    echo 'set -e' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '# Create group if it does not exist' >> /entrypoint.sh && \
-    echo 'if ! getent group ${GROUPID} > /dev/null 2>&1; then' >> /entrypoint.sh && \
-    echo '    addgroup -g ${GROUPID} subxtractgroup' >> /entrypoint.sh && \
-    echo 'else' >> /entrypoint.sh && \
-    echo '    groupmod -g ${GROUPID} subxtractgroup 2>/dev/null || true' >> /entrypoint.sh && \
-    echo 'fi' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '# Create user if it does not exist' >> /entrypoint.sh && \
-    echo 'if ! getent passwd ${USERID} > /dev/null 2>&1; then' >> /entrypoint.sh && \
-    echo '    adduser -D -u ${USERID} -G subxtractgroup subxtractuser' >> /entrypoint.sh && \
-    echo 'else' >> /entrypoint.sh && \
-    echo '    usermod -u ${USERID} -g ${GROUPID} subxtractuser 2>/dev/null || true' >> /entrypoint.sh && \
-    echo 'fi' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '# Fix ownership of application directories' >> /entrypoint.sh && \
-    echo 'chown -R subxtractuser:subxtractgroup /subxtract' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '# Execute command as subxtractuser' >> /entrypoint.sh && \
-    echo 'exec su-exec subxtractuser "$@"' >> /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+RUN cat > /entrypoint.sh <<'EOF'
+#!/bin/sh
+set -e
+
+# Create group if it does not exist
+if ! getent group ${GROUPID} > /dev/null 2>&1; then
+    addgroup -g ${GROUPID} subxtractgroup
+else
+    groupmod -g ${GROUPID} subxtractgroup 2>/dev/null || true
+fi
+
+# Create user if it does not exist
+if ! getent passwd ${USERID} > /dev/null 2>&1; then
+    adduser -D -u ${USERID} -G subxtractgroup subxtractuser
+else
+    usermod -u ${USERID} -g ${GROUPID} subxtractuser 2>/dev/null || true
+fi
+
+# Fix ownership of application directories
+chown -R subxtractuser:subxtractgroup /subxtract
+
+# Execute command as subxtractuser
+exec su-exec subxtractuser "$@"
+EOF
+RUN chmod +x /entrypoint.sh
 
 # Install su-exec for safer user switching
 RUN apk add --no-cache su-exec
 
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/subxtract/start.sh"]

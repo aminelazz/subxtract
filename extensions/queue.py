@@ -3,7 +3,7 @@
 from interactions import Extension, SlashContext, slash_command, check
 from utils import file_utils
 from utils.logger import get_logger
-from utils.utils import is_allowed_channel
+from utils.core import is_allowed_channel
 
 # Configure logging
 logger = get_logger("queue")
@@ -27,17 +27,13 @@ class Queue(Extension):
 
         # Format queue items with their extraction types
         queue_items_str = ""
-        for idx, item in enumerate(user_queue.links, 1):
-            if isinstance(item, dict):
-                link = item.get("link", item)
-                extraction_type = item.get("type", "all_without_audio")
-            else:
-                link = item
-                extraction_type = "all_without_audio"
+        for idx, item in enumerate(user_queue.links_dict, 1):
+            extraction_type = item.type
+            link = item.link
             queue_items_str += f"\n{idx}. **{extraction_type}**: {link}"
         
         await ctx.send(
-            f"Your download queue ({len(user_queue.links)} items):"
+            f"Your download queue ({len(user_queue.links_dict)} items):"
             f"```{queue_items_str}```"
         )
 

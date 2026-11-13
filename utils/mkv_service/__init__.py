@@ -110,7 +110,10 @@ class MKVService:
 
                         # Command to extract subtitle track
                         subprocess.run(
-                            ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"], check=True
+                            ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"],
+                            check=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
                         )
                         extracted_files.append(out_path)
                     except subprocess.CalledProcessError as extract_error:
@@ -122,6 +125,8 @@ class MKVService:
 
             if not extracted_files:
                 return None
+
+            logger.info("Extracted %d subtitle files.", len(extracted_files))
 
             zip_file_path = os.path.join(output_dir, "subtitles.zip")
             with zipfile.ZipFile(zip_file_path, "w") as zipf:
@@ -206,7 +211,12 @@ class MKVService:
                     
                     out_path = os.path.join(output_dir, safe_filename)
                     
-                    subprocess.run(["mkvextract", filepath, "attachments", f"{a_id['id']}:{out_path}"], check=True)
+                    subprocess.run(
+                        ["mkvextract", filepath, "attachments", f"{a_id['id']}:{out_path}"],
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
                     extracted_files.append(out_path)
                 except subprocess.CalledProcessError as extract_error:
                     logger.warning("Failed to extract attachment %s, skipping: %s", a_id.get("id"), extract_error)
@@ -217,6 +227,8 @@ class MKVService:
             
             if not extracted_files:
                 return None
+
+            logger.info("Extracted %d attachments.", len(extracted_files))
 
             zip_file_path = os.path.join(output_dir, "attachments.zip")
             with zipfile.ZipFile(zip_file_path, "w") as zipf:
@@ -273,7 +285,14 @@ class MKVService:
                 return None
 
             out_path = os.path.join(output_dir, "chapters.xml")
-            subprocess.run(["mkvextract", filepath, "chapters", ">", out_path], check=True)
+            subprocess.run(
+                ["mkvextract", filepath, "chapters", ">", out_path],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+
+            logger.info("Extracted %d chapters.", chapters[0].get("num_entries", 0) if chapters else 0)
 
             return {
                 "path": Path(out_path),
@@ -339,7 +358,10 @@ class MKVService:
 
                         # Command to extract audio track
                         subprocess.run(
-                            ["mkvextract", filepath, "tracks", f"{a_id['id']}:{out_path}"], check=True
+                            ["mkvextract", filepath, "tracks", f"{a_id['id']}:{out_path}"],
+                            check=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
                         )
                         extracted_files.append(out_path)
                         audio_track_number += 1
@@ -355,6 +377,7 @@ class MKVService:
             if not extracted_files:
                 return None
 
+            logger.info("Extracted %d audio files.", len(extracted_files))
             zip_file_path = os.path.join(output_dir, "audio.zip")
             with zipfile.ZipFile(zip_file_path, "w") as zipf:
                 for file in extracted_files:
@@ -398,6 +421,12 @@ class MKVService:
         for t_id in info.get("tracks", []):
             if t_id.get("type") == "video":
                 out_path = os.path.join(output_dir, f"track_{t_id['id']}.mkv")
-                subprocess.run(["mkvextract", "tracks", filepath, f"{t_id['id']}:{out_path}"], check=True)
+                subprocess.run(
+                    ["mkvextract", "tracks", filepath, f"{t_id['id']}:{out_path}"],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                logger.info("Extracted video track %d.", t_id["id"])
                 extracted_files.append(out_path)
         return extracted_files

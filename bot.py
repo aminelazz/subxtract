@@ -4,7 +4,7 @@ import pkgutil
 
 from interactions import Activity, ActivityType, Client, Intents, listen
 from config import DISCORD_TOKEN
-from utils.utils import get_logger
+from utils.core import get_logger
 
 # Configure logging
 logger = get_logger("bot")
