@@ -34,6 +34,9 @@ RUN apk add --no-cache aria2 mkvtoolnix mediainfo
 
 # Copy subxtract from the clone stage
 COPY --from=clone-subxtract /subxtract /subxtract
+# Replace the image's startup script with the local container entrypoint
+COPY start.sh /subxtract/start.sh
+RUN chmod +x /subxtract/start.sh
 
 # Expose aria2 RPC port
 EXPOSE 6800

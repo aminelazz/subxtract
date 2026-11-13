@@ -20,6 +20,22 @@ python3.10 -m uvicorn web.server:app \
     --port 8765 > "$WEB_LOG" 2>&1 &
 WEB_PID=$!
 
+WEB_READY=""
+for i in $(seq 1 30); do
+    if wget -qO /dev/null http://127.0.0.1:8765/app/files; then
+        WEB_READY=1
+        break
+    fi
+    sleep 1
+done
+
+if [ -z "$WEB_READY" ]; then
+    echo "Web server failed to start:"
+    cat "$WEB_LOG"
+    kill "$ARIA2_PID" "$WEB_PID" 2>/dev/null || true
+    exit 1
+fi
+
 "$CF_BIN" tunnel \
     --url http://127.0.0.1:8765 \
     --no-autoupdate > "$CF_LOG" 2>&1 &
