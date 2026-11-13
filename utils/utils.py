@@ -172,9 +172,9 @@ async def download_file(
         # Check for errors in status
         if status["status"] == "error":
             await message.edit(
-                content=f"Download error: {status.get("error", "Unknown error")}"
+                content=f"Download error: {status.get('error', 'Unknown error')}"
             )
-            logger.error("Download error: %s", status.get("error", "Unknown error"))
+            logger.error("Download error: %s", status.get('error', 'Unknown error'))
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
@@ -312,7 +312,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                 summary += f"Attachments: {zipped_attachments.count if zipped_attachments else 0}\n"
             
             if extraction_type in ["chapters", "all", "all_without_audio"]:
-                summary += f"Chapters: {chapters.get("count") if chapters else 0}\n"
+                summary += f"Chapters: {chapters.get('count') if chapters else 0}\n"
             
             if extraction_type in ["audio", "all"]:
                 summary += f"Audio Tracks: {zipped_audio.count if zipped_audio else 0}\n"
@@ -323,13 +323,13 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             merge_commands = ""
             
             if extraction_type in ["subtitles", "all", "all_without_audio"] and zipped_subs and len(zipped_subs.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_subs.paths, "subs")}\n"
+                merge_commands += f"{get_merge_commands(zipped_subs.paths, 'subs')}\n"
             
             if extraction_type in ["attachments", "all", "all_without_audio"] and zipped_attachments and len(zipped_attachments.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_attachments.paths, "attachments")}\n"
+                merge_commands += f"{get_merge_commands(zipped_attachments.paths, 'attachments')}\n"
             
             if extraction_type in ["audio", "all"] and zipped_audio and len(zipped_audio.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_audio.paths, "audio")}\n"
+                merge_commands += f"{get_merge_commands(zipped_audio.paths, 'audio')}\n"
 
             if merge_commands:
                 merge_commands_path = file_utils.save_file_to_extract_dir(
@@ -429,7 +429,7 @@ async def download_and_extract(
         try:
             status = aria2_service.get_status(gid)
             if status["status"] != "complete":
-                await ctx.send(f"Download failed or incomplete. Current status: {status["status"]}")
+                await ctx.send(f"Download failed or incomplete. Current status: {status['status']}")
                 logger.error("Download failed or incomplete. Current status: %s", status["status"])
                 aria2_service.remove_all_downloads(force=True)
                 file_utils.clear_current_dl()
