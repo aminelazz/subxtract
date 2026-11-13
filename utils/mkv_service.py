@@ -44,20 +44,16 @@ class MKVService:
     def get_mediainfo(filepath: str):
         """Retrieves information about the MKV file."""
         cmd = ["mediainfo", filepath]
-        # result = subprocess.run(args=cmd, capture_output=True, text=True, check=True)
-        # return result.stdout
-        with subprocess.Popen(args=cmd, text=True) as process:
-            result = process.communicate()
-        return result[0]  # Return stdout
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout
 
     @staticmethod
     def get_mkv_formatted_info(filepath: str) -> MKVMergeReturnType | None:
         """Retrieves formatted information about the MKV file."""
         try:
             cmd = ["mkvmerge", "-J", filepath]
-            with subprocess.Popen(args=cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-                result = process.communicate()
-            info = json.loads(result[0])  # result[0] is stdout
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            info = json.loads(result.stdout)
 
             # Validate against your JSON schema
             validate(instance=info, schema=mkvmerge_schema)
