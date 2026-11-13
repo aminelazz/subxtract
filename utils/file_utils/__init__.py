@@ -161,7 +161,6 @@ def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
     """Loads the download queue from a file."""
     # Configure logging
     logger = get_logger("load_queue_utils")
-    logger.info("Loading queue from %s", str(file_path))
 
     try:
         if not file_path.exists():
@@ -169,13 +168,15 @@ def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
 
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return [
+        queue = [
             QueueObject.from_dict({
                 "user_id": item.get("user_id", ""),
-                "links": [QueueItem.from_dict(link) for link in item.get("links", [])]
+                "links": item.get("links", [])
             })
             for item in data
         ]
+        logger.info("Loaded queue data from %s: %s", str(file_path), str(queue))  # Debug log
+        return queue
     except (json.JSONDecodeError, TypeError) as e:
         logger.error("Error loading queue: %s", e)
         return None
