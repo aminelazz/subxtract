@@ -2,7 +2,7 @@
 
 from interactions import Extension, SlashContext, OptionType
 from interactions import slash_command, slash_option, check
-from utils import aria2_service, utils, file_utils
+from utils import aria2_service, core, file_utils
 from utils.logger import get_logger
 from utils.controller import extraction_cancel_event
 
@@ -14,7 +14,7 @@ class StartQueue(Extension):
     Extension for downloading, managing MKV extraction and upload for multiple links in a queue.
     """
     @slash_command()
-    @check(utils.is_allowed_channel)
+    @check(core.is_allowed_channel)
     @slash_option(
         name="type",
         description="Choose what to extract from all MKV files in the queue.",
@@ -68,7 +68,7 @@ class StartQueue(Extension):
                 break
 
             logger.info("Starting download and extraction for URL: %s with extraction type: %s", url, extraction_type)
-            completed = await utils.download_and_extract(ctx, url, extraction_type=extraction_type)
+            completed = await core.download_and_extract(ctx, url, extraction_type=extraction_type)
 
             # Check if completed successfully
             if completed is True:

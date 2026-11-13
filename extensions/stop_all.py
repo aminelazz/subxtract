@@ -4,7 +4,7 @@ from interactions import Extension, SlashContext, slash_command, check
 from utils import file_utils
 from utils.logger import get_logger
 from utils.controller import extraction_cancel_event
-from utils.utils import is_allowed_channel
+from utils.core import is_allowed_channel
 
 # Configure logging
 logger = get_logger("stop_all")

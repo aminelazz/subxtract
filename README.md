@@ -225,12 +225,18 @@ subxtract/
 │   ├── stop_all.py            # Stop operations
 │   └── force_stop_all.py      # Force stop operations
 ├── utils/                      # Utility modules
-│   ├── aria2_service.py       # Aria2 download management
-│   ├── mkv_service.py         # MKV file operations
-│   ├── file_utils.py          # File and data management
-│   ├── controller.py          # Cancellation event management
-│   ├── logger.py              # Logging configuration
-│   └── utils.py               # General utilities
+│   ├── aria2_service/         # Aria2 download management
+│   │   ├── __init__.py
+│   │   └── _types.py          # Aria2 status type definitions
+│   ├── mkv_service/           # MKV file operations
+│   │   └── __init__.py
+│   ├── file_utils/            # File and data management
+│   │   └── __init__.py
+│   ├── controller/            # Cancellation event management
+│   │   └── __init__.py
+│   ├── logger/                # Logging configuration
+│   │   └── __init__.py
+│   └── core.py                # General utility functions
 ├── gen_types/                  # Generated type definitions
 │   └── mkvmerge_return_type.py
 ├── schemas/                    # JSON schemas for validation
@@ -332,7 +338,7 @@ Create a new extension in the `extensions/` directory:
 
 ```python
 from interactions import Extension, SlashContext, slash_command, check
-from utils.utils import is_allowed_channel
+from utils.core import is_allowed_channel
 
 class MyCommand(Extension):
     @slash_command()

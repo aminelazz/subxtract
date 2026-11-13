@@ -3,7 +3,7 @@
 from interactions import Extension, slash_command, SlashContext, Permissions, check
 from utils.logger import get_logger
 from utils.controller import extraction_cancel_event
-from utils.utils import is_allowed_channel
+from utils.core import is_allowed_channel
 
 # Configure logging
 logger = get_logger("force_stop_all")

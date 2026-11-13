@@ -2,7 +2,7 @@
 
 from interactions import Embed, Extension, slash_command, check, SlashContext
 from utils.logger import get_logger
-from utils.utils import get_bot_infos, get_commands, is_allowed_channel
+from utils.core import get_bot_infos, get_commands, is_allowed_channel
 
 # Configure logging
 logger = get_logger("help")

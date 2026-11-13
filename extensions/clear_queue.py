@@ -3,7 +3,7 @@
 from interactions import Extension, SlashContext, slash_command, check, slash_option, OptionType
 from utils import file_utils
 from utils.logger import get_logger
-from utils.utils import is_allowed_channel
+from utils.core import is_allowed_channel
 
 # Configure logging
 logger = get_logger("clear_queue")
