@@ -208,7 +208,6 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
                 link=link.link,
                 type=link.type if hasattr(link, 'type') else extraction_type
             ))
-    logger.info("Saving queue data to %s: %s", str(file_path), str(normalized_links))  # Debug log
 
     # Load existing data
     existing_data = load_queue(file_path)
@@ -240,6 +239,7 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
             user_queue = QueueObject(user_id=user_id, links=new_links) # Create updated entry
             data.append(user_queue)  # Add updated entry
             logger.info("Updating user %s queue with %d links.", user_id, added)
+            logger.info("Saving queue data to %s: %s", str(file_path), str(data))  # Debug log
 
     data = [item.to_dict() for item in data]  # Ensure all items are QueueObject
 
