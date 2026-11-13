@@ -220,7 +220,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
 
     logger.info("Found %d files for extraction in directory: %s", len(files), dir_path)
 
-    files = [f.get("path", "") for f in files]
+    files = [f.path for f in files]
     downloaded_file_names = [
         os.path.relpath(file_path, dir_path)
         for file_path in files

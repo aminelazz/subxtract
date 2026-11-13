@@ -9,7 +9,7 @@ import requests
 import aria2p
 from config import ARIA2_RPC_HOST, ARIA2_RPC_PORT, ARIA2_RPC_SECRET, DOWNLOAD_DIR
 from utils.logger import get_logger
-from ._types import DownloadStatus, FilesDict
+from ._types import DownloadStatus, Files
 
 # Configure logging
 logger = get_logger("aria2_service")
@@ -72,31 +72,31 @@ def get_status(gid: str) -> DownloadStatus:
         "error": task.error_message,
         "is_complete": task.is_complete,
         "files": [
-            {
-                "index": f.index, 
-                "path": f.path, 
-                "size": f.length_string(human_readable=True)
-            } for f in task.files
+            Files(
+                idx=f.index, 
+                path=f.path, 
+                size=f.length_string(human_readable=True)
+            ) for f in task.files
         ]
     }
 
-def get_files(gid: str) -> list[FilesDict] | None:
+def get_files(gid: str) -> list[Files] | None:
     """Retrieves selected, fully downloaded Matroska files for a download GID."""
     try:
         task = api.get_download(gid)
-        file_list: list[FilesDict] = [
-            {
-                "index": file.index,
-                "path": file.path,
-                "size": file.length_string(human_readable=True),
-            }
+        file_list: list[Files] = [
+            Files(
+                idx=file.index,
+                path=file.path,
+                size=file.length_string(human_readable=True),
+            )
             for file in task.files
             if file.selected
             and file.path.is_file()
             and file.path.suffix.lower() in [".mkv", ".mk3d", ".mka"]
         ]
 
-        file_list.sort(key=lambda f: str(f.get("path", "")))
+        file_list.sort(key=lambda f: str(f.path))
     except Exception as e:
         logger.error("Error retrieving files for GID %s: %s", gid, e)
         return None

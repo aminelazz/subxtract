@@ -1,13 +1,16 @@
 """Type definitions for the aria2 service."""
 
-from typing import TypedDict
+from typing import TypedDict, NamedTuple
 from pathlib import Path
 
-class FilesDict(TypedDict):
+class Files(NamedTuple):
     """Describe a file included in a download."""
-    index: int
+    idx: int
+    """The index of the file in the download."""
     path: Path
+    """The path of the file relative to the download root."""
     size: str
+    """The size of the file in human-readable format."""
 
 class DownloadStatus(TypedDict):
     """Describe the current status of a download."""
@@ -26,4 +29,4 @@ class DownloadStatus(TypedDict):
     eta: str
     error: str | None
     is_complete: bool
-    files: list[FilesDict]
+    files: list[Files]
