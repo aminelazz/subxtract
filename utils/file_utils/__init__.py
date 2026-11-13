@@ -168,7 +168,7 @@ def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
 
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return [QueueObject(**item) for item in data]
+        return [QueueObject.from_dict(item) for item in data]
     except (json.JSONDecodeError, TypeError) as e:
         logger.error("Error loading queue: %s", e)
         return None
@@ -236,7 +236,10 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
             new_links = user_queue.links_dict + new_items
             added = len(new_items)
             data = [item for item in data if item.user_id != user_id]  # Remove old entry
-            user_queue = QueueObject(user_id=user_id, links=new_links) # Create updated entry
+            user_queue = QueueObject.from_dict({
+                "user_id": user_id,
+                "links": [item.to_dict() for item in new_links]
+            })
             data.append(user_queue)  # Add updated entry
             logger.info("Updating user %s queue with %d links.", user_id, added)
             logger.info("Saving queue data to %s: %s", str(file_path), str(data))  # Debug log
