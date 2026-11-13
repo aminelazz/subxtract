@@ -22,7 +22,7 @@ def get_download_status_message(status: aria2_service.DownloadStatus, gid: str) 
         f"┠**GID:** `{gid}`\n"
         f"┠**Status:** {status["status"]}\n"
         f"┠**Progress:** {status["progress"]}\n"
-        f"┠**Processed:** {status.get("downloaded_size", "0B")} of {status.get("total_size", "0B")}\n"
+        f"┠**Processed:** {status["downloaded_size"]} of {status["total_size"]}\n"
         f"┠**Speed:** {status.get("speed", "N/A")}\n"
         f"┠**ETA:** {status.get("eta", "N/A")}"
         f"┠**Seeders:** {status.get("seeders", "N/A")}\n"
