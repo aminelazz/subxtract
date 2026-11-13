@@ -211,6 +211,7 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
 
     # Load existing data
     existing_data = load_queue(file_path)
+    logger.info("Loaded existing queue data from %s: %s", str(file_path), str(existing_data))  # Debug log
 
     # Update or create new entry
     if existing_data is None:
@@ -238,7 +239,7 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
             data = [item for item in data if item.user_id != user_id]  # Remove old entry
             user_queue = QueueObject.from_dict({
                 "user_id": user_id,
-                "links": [item.to_dict() for item in new_links]
+                "links": new_links
             })
             data.append(user_queue)  # Add updated entry
             logger.info("Updating user %s queue with %d links.", user_id, added)
@@ -280,7 +281,10 @@ def remove_from_queue(user_id: str, links: list[str], file_path: Path = Path(QUE
 
         # Update the user's queue in the data
         data = [item for item in data if item.user_id != user_id]  # Remove old entry
-        user_queue = QueueObject(user_id=user_id, links=new_links) # Create updated entry
+        user_queue = QueueObject.from_dict({
+            "user_id": user_id,
+            "links": new_links
+        })  # Create updated entry
         data.append(user_queue)  # Add updated entry
 
     # Save the updated data back to the file
