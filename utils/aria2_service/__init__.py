@@ -55,30 +55,30 @@ def get_status(gid: str) -> DownloadStatus:
     """Retrieves the status of a download by its GID."""
     task = api.get_download(gid)
 
-    return {
-        "name": task.name,
-        "status": task.status,
-        "progress": task.progress_string(),
-        "dir": task.dir,
-        "followed_by_ids": task.followed_by_ids,
-        "speed": task.download_speed_string(human_readable=True),
-        "seeders": str(task.num_seeders) if task.is_torrent else "N/A",
-        "num_selected_files": len([f for f in task.files if f.selected]),
-        "num_total_files": len(task.files),
-        "downloaded_size": task.completed_length_string(human_readable=True),
-        "total_size": task.total_length_string(human_readable=True),
-        "total_size_bytes": task.total_length,
-        "eta": task.eta_string(),
-        "error": task.error_message,
-        "is_complete": task.is_complete,
-        "files": [
+    return DownloadStatus(
+        name                =task.name,
+        status              =task.status,
+        progress            =task.progress_string(),
+        dir                 =task.dir,
+        followed_by_ids     =task.followed_by_ids,
+        speed               =task.download_speed_string(human_readable=True),
+        seeders             =str(task.num_seeders) if task.is_torrent else "N/A",
+        num_selected_files  =len([f for f in task.files if f.selected]),
+        num_total_files     =len(task.files),
+        downloaded_size     =task.completed_length_string(human_readable=True),
+        total_size          =task.total_length_string(human_readable=True),
+        total_size_bytes    =task.total_length,
+        eta                 =task.eta_string(),
+        error               =task.error_message,
+        is_complete         =task.is_complete,
+        files=[
             Files(
-                idx=f.index, 
-                path=f.path, 
+                idx=f.index,
+                path=f.path,
                 size=f.length_string(human_readable=True)
             ) for f in task.files
         ]
-    }
+    )
 
 def get_files(gid: str) -> list[Files] | None:
     """Retrieves selected, fully downloaded Matroska files for a download GID."""
@@ -135,7 +135,7 @@ def resume_download(gid: str) -> bool:
 def track_progress(gid: str) -> Iterator[DownloadStatus]:
     """Tracks the progress of a download by its GID."""
     download = get_status(gid)
-    while not download["is_complete"]:
+    while not download.is_complete:
         download = get_status(gid)
         yield download
 

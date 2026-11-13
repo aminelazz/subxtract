@@ -18,15 +18,15 @@ from utils.logger import get_logger
 def get_download_status_message(status: aria2_service.DownloadStatus, gid: str) -> str:
     """Generates a status message for a download."""
     return (
-        f"┏**{status['name']}**\n"
+        f"┏**{status.name}**\n"
         f"┠**GID:** `{gid}`\n"
-        f"┠**Status:** {status['status']}\n"
-        f"┠**Progress:** {status['progress']}\n"
-        f"┠**Processed:** {status['downloaded_size']} of {status['total_size']}\n"
-        f"┠**Speed:** {status['speed']}\n"
-        f"┠**ETA:** {status['eta']}\n"
-        f"┠**Seeders:** {status['seeders']}\n"
-        f"┖**Total Files:** {status['num_selected_files']}"
+        f"┠**Status:** {status.status}\n"
+        f"┠**Progress:** {status.progress}\n"
+        f"┠**Processed:** {status.downloaded_size} of {status.total_size}\n"
+        f"┠**Speed:** {status.speed}\n"
+        f"┠**ETA:** {status.eta}\n"
+        f"┠**Seeders:** {status.seeders}\n"
+        f"┖**Total Files:** {status.num_selected_files}"
     )
 
 def remove_duplicates_preserve_order(links: list[str]) -> list[str]:
@@ -157,9 +157,9 @@ async def download_file(
             status = next(progress)
         except StopIteration:
             return True
-        
+
         # Check for file size limit (Increased to 20 GB)
-        if check_size and status["total_size_bytes"] > 20 * 1024 * 1024 * 1024: # More than 20 GB
+        if check_size and status.total_size_bytes > 20 * 1024 * 1024 * 1024: # More than 20 GB
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
@@ -170,11 +170,11 @@ async def download_file(
             return False
 
         # Check for errors in status
-        if status["status"] == "error":
+        if status.status == "error":
             await message.edit(
-                content=f"Download error: {status.get('error', 'Unknown error')}"
+                content=f"Download error: {status.error if status.error else 'Unknown error occurred.'}"
             )
-            logger.error("Download error: %s", status.get('error', 'Unknown error'))
+            logger.error("Download error: %s", status.error if status.error else 'Unknown error occurred.')
             aria2_service.remove_all_downloads(force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
@@ -182,7 +182,7 @@ async def download_file(
         await message.edit(
             content=get_download_status_message(status, gid)
         )
-        if status["status"] == "complete":
+        if status.status == "complete":
             logger.info("Download completed successfully.")
             await message.edit(
                 content="Download completed successfully!"
@@ -240,7 +240,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             current_chunk += "```"
             await ctx.send(current_chunk)
             # Reset chunk for the next message
-            current_chunk = "```text\n" + line 
+            current_chunk = "```text\n" + line
         else:
             current_chunk += line
 
@@ -265,7 +265,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         file = str(file_path)
         try:
             mkv_service_class = mkv_service.MKVService()
-            
+
             # Initialize extraction results
             zipped_subs = None
             zipped_attachments = None
@@ -280,13 +280,13 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             # Extract based on type
             if extraction_type in ["subtitles", "all", "all_without_audio"]:
                 zipped_subs = mkv_service_class.extract_subtitles(file)
-            
+
             if extraction_type in ["attachments", "all", "all_without_audio"]:
                 zipped_attachments = mkv_service_class.extract_attachments(file)
-            
+
             if extraction_type in ["chapters", "all", "all_without_audio"]:
                 chapters = mkv_service_class.extract_chapters(file)
-            
+
             if extraction_type in ["audio", "all"]:
                 zipped_audio = mkv_service_class.extract_audio(file)
 
@@ -298,36 +298,36 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             output_files.extend(zipped_subs.paths if zipped_subs else [])
             output_files.extend(zipped_attachments.paths if zipped_attachments else [])
             output_files.extend(zipped_audio.paths if zipped_audio else [])
-            
+
             logger.info("Finished processing MKV file, Uploading results...")
             await message.edit(content="Uploading results...")
-            
+
             # Build the summary message
             summary = f"`{os.path.basename(file)}`\n```"
-            
+
             if extraction_type in ["subtitles", "all", "all_without_audio"]:
                 summary += f"Subtitles: {zipped_subs.count if zipped_subs else 0}\n"
-            
+
             if extraction_type in ["attachments", "all", "all_without_audio"]:
                 summary += f"Attachments: {zipped_attachments.count if zipped_attachments else 0}\n"
-            
+
             if extraction_type in ["chapters", "all", "all_without_audio"]:
                 summary += f"Chapters: {chapters.get('count') if chapters else 0}\n"
-            
+
             if extraction_type in ["audio", "all"]:
                 summary += f"Audio Tracks: {zipped_audio.count if zipped_audio else 0}\n"
-            
+
             summary += "```"
-            
+
             # Build merge commands if needed
             merge_commands = ""
-            
+
             if extraction_type in ["subtitles", "all", "all_without_audio"] and zipped_subs and len(zipped_subs.paths) > 1:
                 merge_commands += f"{get_merge_commands(zipped_subs.paths, 'subs')}\n"
-            
+
             if extraction_type in ["attachments", "all", "all_without_audio"] and zipped_attachments and len(zipped_attachments.paths) > 1:
                 merge_commands += f"{get_merge_commands(zipped_attachments.paths, 'attachments')}\n"
-            
+
             if extraction_type in ["audio", "all"] and zipped_audio and len(zipped_audio.paths) > 1:
                 merge_commands += f"{get_merge_commands(zipped_audio.paths, 'audio')}\n"
 
@@ -336,7 +336,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                     merge_commands.encode("utf-8"), "merge_commands.txt"
                 )
                 output_files.append(merge_commands_path)
-            
+
             # Batch up to 10 files to test Discord's multi-attachment upload limit.
             valid_paths = [path for path in output_files if path is not None]
             valid_files = [
@@ -353,7 +353,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
                     content=summary,
                     files=file_chunks[0]
                 )
-                
+
                 # If there are more than 10 files, send the remaining batches as new messages
                 for extra_chunk in file_chunks[1:]:
                     await ctx.send(files=extra_chunk)
@@ -428,9 +428,9 @@ async def download_and_extract(
         #region Verify completion
         try:
             status = aria2_service.get_status(gid)
-            if status["status"] != "complete":
-                await ctx.send(f"Download failed or incomplete. Current status: {status['status']}")
-                logger.error("Download failed or incomplete. Current status: %s", status["status"])
+            if status.status != "complete":
+                await ctx.send(f"Download failed or incomplete. Current status: {status.status}")
+                logger.error("Download failed or incomplete. Current status: %s", status.status)
                 aria2_service.remove_all_downloads(force=True)
                 file_utils.clear_current_dl()
                 file_utils.clear_temp()
@@ -445,7 +445,7 @@ async def download_and_extract(
         #endregion
 
         #region Torrent download
-        if status["followed_by_ids"]:
+        if status.followed_by_ids:
             try:
                 # Check for cancellation
                 if extraction_cancel_event.is_set():
@@ -455,7 +455,7 @@ async def download_and_extract(
                     await message.edit(content="Torrent download has been cancelled.")
                     logger.info("Torrent download with GID: %s has been cancelled.", gid)
                     return False
-                gid = status["followed_by_ids"][0]
+                gid = status.followed_by_ids[0]
                 await message.edit(content=f"Metadata download complete. Starting torrent download with GID: `{gid}`")
                 logger.info("Metadata downloaded, starting following download with GID: %s", gid)
                 if select:
@@ -507,7 +507,7 @@ async def download_and_extract(
                             logger.info("Torrent selection cancelled for GID %s.", gid)
                             return False
                         torrent_status = aria2_service.get_status(gid)
-                        torrent_state = torrent_status["status"]
+                        torrent_state = torrent_status.status
                         # Check if the torrent has resumed after selection
                         if torrent_state in {"active", "waiting", "complete"}:
                             break
@@ -543,7 +543,7 @@ async def download_and_extract(
                     logger.info("File selection submitted; resumed torrent GID %s.", gid)
                 status = aria2_service.get_status(gid)
                 #region Track Torrent progress
-                while status["status"] != "complete":
+                while status.status != "complete":
                     # Check for cancellation
                     if extraction_cancel_event.is_set():
                         aria2_service.remove_all_downloads(force=True)
