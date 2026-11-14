@@ -31,7 +31,6 @@ class StartQueue(Extension):
     )
     async def start_queue(self, ctx: SlashContext, extraction_type: str):
         """Downloads, Extracts, then uploads the results from multiple links in the queue."""
-        extraction_cancel_event.clear()  # Reset the cancellation event at the start of the queue processing
         await ctx.defer()
 
         # Get the queue
@@ -60,6 +59,9 @@ class StartQueue(Extension):
             url = queue_item.link
             # extraction_type = extraction_type  # Use selected type for all links
 
+            logger.info("Starting download and extraction for URL: %s with extraction type: %s", url, extraction_type)
+            completed = await core.download_and_extract(ctx, url, extraction_type=extraction_type)
+
             # Check for cancellation
             if extraction_cancel_event.is_set():
                 aria2_service.remove_all_downloads(force=True)
@@ -67,9 +69,6 @@ class StartQueue(Extension):
                 file_utils.clear_temp()
                 await ctx.send(content="queue processing has been cancelled.")
                 break
-
-            logger.info("Starting download and extraction for URL: %s with extraction type: %s", url, extraction_type)
-            completed = await core.download_and_extract(ctx, url, extraction_type=extraction_type)
 
             # Check if completed successfully
             if completed is True:
