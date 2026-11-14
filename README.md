@@ -232,6 +232,7 @@ subxtract/
 │   │   └── __init__.py
 │   ├── file_utils/            # File and data management
 │   │   └── __init__.py
+│   │   └── _types.py          # File utils type definitions
 │   ├── controller/            # Cancellation event management
 │   │   └── __init__.py
 │   ├── logger/                # Logging configuration
