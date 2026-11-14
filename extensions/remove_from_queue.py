@@ -26,7 +26,7 @@ class RemoveFromQueue(Extension):
         if not links_list:
             await ctx.send("No valid links provided.")
             return
-        
+
         difference = file_utils.remove_from_queue(str(ctx.author.id), links_list)
         await ctx.send(f"Removed {difference} links from your download queue.")
         logger.info("User %s removed %d links from the queue.", str(ctx.author.id), difference)

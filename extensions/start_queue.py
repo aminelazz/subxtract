@@ -16,7 +16,7 @@ class StartQueue(Extension):
     @slash_command()
     @check(core.is_allowed_channel)
     @slash_option(
-        name="type",
+        name="extraction_type",
         description="Choose what to extract from all MKV files in the queue.",
         required=True,
         opt_type=OptionType.STRING,
@@ -29,7 +29,7 @@ class StartQueue(Extension):
             {"name": "All (Without Audio)", "value": "all_without_audio"},
         ],
     )
-    async def start_queue(self, ctx: SlashContext, type: str):
+    async def start_queue(self, ctx: SlashContext, extraction_type: str):
         """Downloads, Extracts, then uploads the results from multiple links in the queue."""
         await ctx.defer()
 
@@ -57,7 +57,7 @@ class StartQueue(Extension):
         for queue_item in queue_items:
             # Extract link from queue item (supports both old string format and new dict format)
             url = queue_item.link
-            extraction_type = type  # Use selected type for all links
+            extraction_type = extraction_type  # Use selected type for all links
 
             # Check for cancellation
             if extraction_cancel_event.is_set():

@@ -23,7 +23,7 @@ class StopAll(Extension):
                 logger.info("No active processes to stop.")
                 return
 
-            if ctx.author.id != int(current_dl.get("user_id", 0)):
+            if ctx.author.id != int(current_dl.user_id):
                 await ctx.send("You do not have permission to stop the current processes.")
                 logger.warning(
                     "User %s attempted to stop processes without permission.",

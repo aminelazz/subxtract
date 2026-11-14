@@ -21,8 +21,8 @@ class Status(Extension):
             logger.info("No download in progress.")
             return
 
-        user_id = current_dl.get("user_id", "")
-        guild_id = current_dl.get("guild_id", "")
+        user_id = current_dl.user_id
+        guild_id = current_dl.guild_id
 
         # If the command is invoked by the user who started the download
         if str(ctx.author.id) == str(user_id):
