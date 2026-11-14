@@ -8,7 +8,7 @@ import json
 from config import TEMP_DIR, EXTRACT_DIR, DOWNLOAD_DIR
 from config import ALLOWED_CHANNELS_FILE, CURRENT_DL_FILE, QUEUE_FILE
 from utils.logger import get_logger
-from ._types import AllowedChannelsType, GuildObject, CurrentDLObject, QueueItem, QueueObject
+from ._types import AllowedChannelsTypeDict, CurrentDLObjectDict, AllowedChannelsType, GuildObject, CurrentDLObject, QueueItem, QueueObject, QueueObjectDict
 
 DISCORD_MAX_FILE_SIZE = 20 * 1024 * 1024
 
@@ -92,7 +92,7 @@ def load_current_dl(file_path: Path = Path(CURRENT_DL_FILE)) -> CurrentDLObject 
         return None
 
     with open(file_path, "r", encoding="utf-8") as f:
-        data: dict[str, str] = json.load(f)
+        data: CurrentDLObjectDict = json.load(f)
     return CurrentDLObject.from_dict(data)
 
 def clear_current_dl(file_path: Path = Path(CURRENT_DL_FILE)):
@@ -105,10 +105,10 @@ def load_allowed_channels(file_path: Path = Path(ALLOWED_CHANNELS_FILE)) -> Allo
     try:
         if not file_path.exists():
             return None
-        data: dict[str, list] = {}
+        data: AllowedChannelsTypeDict = {}
 
         with open(file_path, "r", encoding="utf-8") as f:
-            data: dict[str, list] = json.load(f)
+            data: AllowedChannelsTypeDict = json.load(f)
         return AllowedChannelsType.from_dict(data)
     except (json.JSONDecodeError, TypeError):
         return None
@@ -167,7 +167,7 @@ def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
             return None
 
         with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            data: list[QueueObjectDict] = json.load(f)
         queue = [
             QueueObject.from_dict({
                 "user_id": item.get("user_id", ""),

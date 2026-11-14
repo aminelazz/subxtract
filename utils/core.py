@@ -37,7 +37,9 @@ def remove_duplicates_preserve_order(links: list[str]) -> list[str]:
             unique_links.append(link.strip())
     return unique_links
 
-def get_merge_commands(files: list[Path], track_type: Literal["subs", "attachments", "audio"]) -> str:
+def get_merge_commands(
+        files: list[Path],track_type: Literal["subs", "attachments", "audio"]
+    ) -> str:
     """Generates commands for merging zip files (subtitles, attachments, or audio)."""
     separated_by_plus_sign = " + ".join([f'"{os.path.basename(file)}"' for file in files])
     separated_by_space = " ".join([f'"{os.path.basename(file)}"' for file in files])
@@ -120,8 +122,11 @@ def get_nyaa_torrent_link(url: str) -> str | None:
             torrent_id = match.group("id")
             logger.info("Successfully got torrent link from nyaa.si: %s", url)
             return f"https://nyaa.si/download/{torrent_id}.torrent"
-    except Exception as e:
+    except re.error as e:
         logger.error("An error occurred while fetching torrent link from nyaa.si: %s", e)
+        return None
+    except Exception as e: # Catch-all for unexpected errors
+        logger.error("An unexpected error occurred while fetching torrent link from nyaa.si: %s", e)
         return None
 
     return None

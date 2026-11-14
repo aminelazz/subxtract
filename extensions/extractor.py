@@ -19,7 +19,7 @@ class Extractor(Extension):
         opt_type=OptionType.STRING,
     )
     @slash_option(
-        name="type",
+        name="extraction_type",
         description="Choose what to extract from the MKV file.",
         required=True,
         opt_type=OptionType.STRING,
@@ -38,14 +38,17 @@ class Extractor(Extension):
         required=False,
         opt_type=OptionType.BOOLEAN,
     )
-    async def extract(self, ctx: SlashContext, url: str, type: str, select: bool = False):
-        """Downloads using Aria2 (magnet/torrent/ddl links), Extracts MKV tracks, then uploads them."""
+    async def extract(
+        self, ctx: SlashContext, url: str, extraction_type: str, select: bool = False
+    ):
+        """Downloads using Aria2 (magnet/torrent/ddl links), Extracts MKV tracks,
+        then uploads them."""
         select = bool(select)
         await ctx.defer()
 
         # Start download and extraction process
         completed = await core.download_and_extract(
-            ctx, url, extraction_type=type, select=select
+            ctx, url, extraction_type=extraction_type, select=select
         )
 
         # Check if completed successfully

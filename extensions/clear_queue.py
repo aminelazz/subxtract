@@ -1,6 +1,6 @@
 """ClearQueue extension for clearing user queues."""
 
-from interactions import Extension, SlashContext, slash_command, check, slash_option, OptionType
+from interactions import Extension, SlashContext, slash_command, check
 from utils import file_utils
 from utils.logger import get_logger
 from utils.core import is_allowed_channel

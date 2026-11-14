@@ -182,7 +182,7 @@ python bot.py
 #### Download & Extraction
 - `/extract <url>` - Download and extract content from MKV file(s)
   - Supports: Torrent files, magnet links, direct download URLs
-  - `type` selects the content to extract
+  - `extraction_type` selects the content to extract
   - `select` is an optional boolean, `False` by default; when `True`, sends
     a Cloudflare-hosted aria2 torrent file-selection page
 
@@ -232,6 +232,7 @@ subxtract/
 │   │   └── __init__.py
 │   ├── file_utils/            # File and data management
 │   │   └── __init__.py
+│   │   └── _types.py          # File utils type definitions
 │   ├── controller/            # Cancellation event management
 │   │   └── __init__.py
 │   ├── logger/                # Logging configuration

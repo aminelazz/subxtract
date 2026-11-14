@@ -1,6 +1,20 @@
 """Type definitions for file utility data structures."""
 
-from typing import NamedTuple
+from typing import NamedTuple, TypedDict, cast
+
+class AllowedChannelsTypeDict(TypedDict, total=False):
+    """Type definition for allowed channels data structure in dictionary form."""
+
+    allowed_channels: list["GuildObjectDict"]
+    """All allowed channels, grouped by guild."""
+
+class GuildObjectDict(TypedDict):
+    """Type definition for guild object in allowed channels in dictionary form."""
+
+    guild: str
+    """The guild ID."""
+    channels: list[str]
+    """The list of allowed channels."""
 
 class AllowedChannelsType(NamedTuple):
     """Type definition for allowed channels data structure."""
@@ -9,7 +23,7 @@ class AllowedChannelsType(NamedTuple):
     """All allowed channels, grouped by guild."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AllowedChannelsType":
+    def from_dict(cls, data: AllowedChannelsTypeDict) -> "AllowedChannelsType":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             allowed_channels=list(
@@ -38,6 +52,16 @@ class GuildObject(NamedTuple):
             "channels": self.channels
         }
 
+class CurrentDLObjectDict(TypedDict):
+    """Type definition for current download object in dictionary form."""
+
+    gid: str
+    """The GID of the download."""
+    user_id: str
+    """The user ID associated with the download."""
+    guild_id: str
+    """The guild ID associated with the download."""
+
 class CurrentDLObject(NamedTuple):
     """Type definition for current download object."""
 
@@ -49,7 +73,7 @@ class CurrentDLObject(NamedTuple):
     """The guild ID associated with the download."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CurrentDLObject":
+    def from_dict(cls, data: CurrentDLObjectDict) -> "CurrentDLObject":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             gid=data.get("gid", ""),
@@ -65,6 +89,14 @@ class CurrentDLObject(NamedTuple):
             "guild_id": self.guild_id
         }
 
+class QueueItemDict(TypedDict, total=False):
+    """Type definition for a single queue item in dictionary form."""
+
+    link: str
+    """The link associated with the queue item."""
+    type: str
+    """The extraction type associated with the queue item."""
+
 class QueueItem(NamedTuple):
     """Type definition for a single queue item with link and extraction type."""
 
@@ -74,7 +106,7 @@ class QueueItem(NamedTuple):
     """The extraction type associated with the queue item."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> "QueueItem":
+    def from_dict(cls, data: QueueItemDict) -> "QueueItem":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             link=data.get("link", ""),
@@ -88,18 +120,28 @@ class QueueItem(NamedTuple):
             "type": self.type
         }
 
+class QueueObjectDict(TypedDict, total=False):
+    """Type definition for queue object in dictionary form."""
+
+    user_id: str
+    """The user ID associated with the queue."""
+    links: list[str] | list[QueueItemDict] | list[QueueItem]
+    """A list of links associated with the queue, can be in old or new format."""
+    links_dict: list[QueueItem]
+    """A list of QueueItem objects associated with the queue, always in new format."""
+
 class QueueObject(NamedTuple):
     """Type definition for queue object."""
 
     user_id: str = ""
     """The user ID associated with the queue."""
-    links: list[str] | list[QueueItem] = []
+    links: list[str] | list[QueueItemDict] | list[QueueItem] = []
     """A list of links associated with the queue, can be in old or new format."""
     links_dict: list[QueueItem] = []
     """A list of QueueItem objects associated with the queue, always in new format."""
 
     @classmethod
-    def from_dict(cls, data: dict) -> "QueueObject":
+    def from_dict(cls, data: QueueObjectDict) -> "QueueObject":
         """Builds the structure from raw data, converting each guild dict."""
         return cls(
             user_id=data.get("user_id", ""),
@@ -108,19 +150,20 @@ class QueueObject(NamedTuple):
         )
 
     @staticmethod
-    def _normalize_links(links: list[str] | list[QueueItem]) -> list[QueueItem]:
+    def _normalize_links(links: list[str] | list[QueueItemDict] | list[QueueItem]) -> list[QueueItem]:
         """Converts links to new format {link, type} if needed."""
         normalized: list[QueueItem] = []
         for item in links:
             if isinstance(item, str):
                 # Old format: just a link string
                 normalized.append(QueueItem(link=item, type="all_without_audio"))
+            elif isinstance(item, dict):
+                # New format: dict with link and type
+                item = cast(QueueItemDict, item)  # type hint for clarity
+                normalized.append(QueueItem(link=item.get("link", ""), type=item.get("type", "all_without_audio")))
             elif isinstance(item, QueueItem):
                 # New format: already a QueueItem
                 normalized.append(QueueItem(link=item.link, type=item.type))
-            elif isinstance(item, dict):
-                # New format: dict with link and type
-                normalized.append(QueueItem(link=item.get("link", ""), type=item.get("type", "all_without_audio")))
         return normalized
 
     def to_dict(self) -> dict[str, str | list]:
