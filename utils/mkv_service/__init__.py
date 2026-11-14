@@ -90,15 +90,30 @@ class MKVService:
                 if s_id.get("type") == "subtitles":
                     try:
                         subtitle_codec = s_id.get("codec", "").strip()
+                        codec = subtitle_codec.lower()
                         subtitle_language = s_id.get("properties", {}).get("language", "und")
 
-                        # Determine extension based on codec
-                        if subtitle_codec == "SubRip/SRT" or "srt" in subtitle_codec.lower():
+                        # Determine extension based on mkvmerge / mkvextract codec ID
+                        if subtitle_codec in ("SubRip/SRT", "S_TEXT/UTF8", "S_TEXT/ASCII") or any(k in codec for k in ("srt", "subrip", "utf8", "ascii")):
                             extension = "srt"
-                        elif subtitle_codec == "S_TEXT/UTF8" or "utf8" in subtitle_codec.lower():
-                            extension = "srt"
-                        elif subtitle_codec == "SubStationAlpha" or "ass" in subtitle_codec.lower():
+                        elif subtitle_codec == "S_TEXT/ASS" or "ass" in codec:
                             extension = "ass"
+                        elif subtitle_codec in ("SubStationAlpha", "S_TEXT/SSA") or "ssa" in codec:
+                            extension = "ssa"
+                        elif subtitle_codec == "S_TEXT/WEBVTT" or any(k in codec for k in ("webvtt", "vtt")):
+                            extension = "vtt"
+                        elif subtitle_codec in ("S_HDMV/PGS", "HDMV PGS") or any(k in codec for k in ("pgs", "sup")):
+                            extension = "sup"
+                        elif subtitle_codec in ("S_VOBSUB", "VobSub") or "vobsub" in codec:
+                            extension = "idx"  # mkvextract takes .idx as the output filename and auto-creates the .sub file
+                        elif subtitle_codec == "S_DVBSUB" or "dvbsub" in codec:
+                            extension = "dvb"
+                        elif subtitle_codec == "S_KATE" or "kate" in codec:
+                            extension = "ogg"
+                        elif subtitle_codec == "S_TEXT/USF" or "usf" in codec:
+                            extension = "usf"
+                        elif subtitle_codec == "S_HDMV/TEXTST" or "textst" in codec:
+                            extension = "textst"
                         else:
                             extension = "txt"
 
@@ -108,14 +123,18 @@ class MKVService:
                             f"subtitle_{s_id['id']}.{subtitle_language}.{extension}"
                         )
 
-                        # Command to extract subtitle track
-                        subprocess.run(
-                            ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"],
-                            check=True,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL
-                        )
-                        extracted_files.append(out_path)
+                        try:
+                            # Command to extract subtitle track
+                            subprocess.run(
+                                ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"],
+                                check=True,
+                                stdout=subprocess.DEVNULL
+                            )
+                            extracted_files.append(out_path)
+                            # logger.info("Extracted subtitle track %s.", str(path.basename(out_path)))
+                        except subprocess.CalledProcessError as e:
+                            logger.warning("Failed to extract subtitle track %s, skipping: %s", s_id.get("id"), e)
+                            continue
                     except subprocess.CalledProcessError as extract_error:
                         logger.warning("Failed to extract subtitle track %s, skipping: %s", s_id.get("id"), extract_error)
                         continue
