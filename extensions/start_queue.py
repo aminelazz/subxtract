@@ -56,9 +56,9 @@ class StartQueue(Extension):
         i = 1
         # Start download and extraction process
         for queue_item in queue_items:
-            # Extract link from queue item (supports both old string format and new dict format)
+            # Extract link from queue item
             url = queue_item.link
-            extraction_type = extraction_type  # Use selected type for all links
+            # extraction_type = extraction_type  # Use selected type for all links
 
             # Check for cancellation
             if extraction_cancel_event.is_set():
