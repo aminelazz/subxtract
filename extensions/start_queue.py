@@ -31,6 +31,7 @@ class StartQueue(Extension):
     )
     async def start_queue(self, ctx: SlashContext, extraction_type: str):
         """Downloads, Extracts, then uploads the results from multiple links in the queue."""
+        extraction_cancel_event.clear()  # Reset the cancellation event at the start of the queue processing
         await ctx.defer()
 
         # Get the queue
