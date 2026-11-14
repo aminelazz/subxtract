@@ -59,10 +59,10 @@ class MKVService:
             validate(instance=info, schema=mkvmerge_schema)
             return info
         except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
-            print(f"Error retrieving MKV info: {e}")
+            logger.error("Error retrieving MKV info: %s", e)
             return None
         except ValidationError as ve:
-            print(f"Schema validation error: {ve}")
+            logger.error("Schema validation error: %s", ve)
             return None
 
     @staticmethod
