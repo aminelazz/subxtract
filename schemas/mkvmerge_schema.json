@@ -249,8 +249,7 @@
     "identification_format_version": {
       "description": "The output format's version",
       "type": "integer",
-      "minimum": 20,
-      "maximum": 20
+      "minimum": 12
     },
     "track_tags": {
       "type": "array",
