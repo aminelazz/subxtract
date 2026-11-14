@@ -266,4 +266,8 @@ logs/
 # script.py
 script.py
 
+# utils/*.txt
 utils/*.txt
+
+# IDE - VSCode
+.vscode/
