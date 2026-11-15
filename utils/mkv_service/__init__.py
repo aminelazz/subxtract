@@ -286,6 +286,7 @@ class MKVService:
                 return None
 
             extracted_files = []
+            idx_subs: int = 0
             for s_id in info.get("tracks", []):
                 if s_id.get("type") == "subtitles":
                     try:
@@ -340,8 +341,9 @@ class MKVService:
                         if not result:
                             continue  # Skip to the next subtitle track if extraction failed
                         extracted_files.append(out_path)
+                        # mkvextract automatically creates a .sub file alongside the .idx file
                         if extension == "idx":
-                            # mkvextract automatically creates a .sub file alongside the .idx file
+                            idx_subs += 1
                             sub_file_path = os.path.join(
                                 output_dir,
                                 f"subtitle_{s_id['id']}.{subtitle_language}.sub"
@@ -358,7 +360,8 @@ class MKVService:
             if not extracted_files:
                 return None
 
-            logger.info("Extracted %d subtitle files.", len(extracted_files))
+            subs_count = len(extracted_files) - idx_subs  # Exclude .sub files from the count
+            logger.info("Extracted %d subtitle files.", subs_count)
 
             zip_file_path = os.path.join(output_dir, "subtitles.zip")
             with zipfile.ZipFile(zip_file_path, "w") as zipf:
@@ -373,7 +376,7 @@ class MKVService:
                     split_files = create_split_zip(Path(zip_file_path), part_size=DISCORD_MAX_FILE_SIZE)
                     return MKVExtractReturnType(
                         paths=split_files,
-                        count=len(extracted_files)
+                        count=subs_count
                     )
                 except Exception as split_ex:
                     logger.error("Error splitting subtitles zip file: %s", split_ex)
