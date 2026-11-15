@@ -384,7 +384,7 @@ class MKVService:
             
             return MKVExtractReturnType(
                 paths=[Path(zip_file_path)],
-                count=len(extracted_files)
+                count=subs_count
             )
         except subprocess.CalledProcessError as e:
             logger.error("Error extracting subtitles: %s", e)
