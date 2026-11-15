@@ -1,8 +1,10 @@
 # ---- Stage 1: Clone the webui-aria2 repository ----
 FROM alpine/git AS clone-subxtract
 
+ARG REPO_BRANCH=main
+
 # Clone the subxtract repository
-RUN git clone https://github.com/aminelazz/subxtract.git /subxtract
+RUN git clone --branch "${REPO_BRANCH}" --single-branch https://github.com/aminelazz/subxtract.git /subxtract
 
 # ---- Stage 2: Build the final image ----
 # Base image (Python 3.10 on Alpine 3.22)

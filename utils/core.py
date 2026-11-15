@@ -111,7 +111,7 @@ async def is_allowed_channel(ctx: SlashContext) -> bool:
 def get_nyaa_torrent_link(url: str) -> str | None:
     """Gets the direct torrent link from a nyaa.si URL."""
     # Configure logging
-    logger = get_logger("get_nyaa_torrent_link")
+    logger = get_logger("core.get_nyaa_torrent_link")
 
     if "nyaa.si" not in url:
         return None
@@ -133,7 +133,7 @@ def get_nyaa_torrent_link(url: str) -> str | None:
 
 def get_tunnel_url() -> str | None:
     """Read and validate the public web interface URL from the shared data file."""
-    logger = get_logger("cloudflare_tunnel")
+    logger = get_logger("core.get_tunnel_url")
     tunnel_file = Path(TUNNEL_URL_FILE)
     if not tunnel_file.is_file():
         logger.error("Cloudflare tunnel URL file does not exist: %s", tunnel_file)
@@ -153,7 +153,7 @@ async def download_file(
 ) -> bool | None:
     """Downloads a file and tracks its progress."""
     # Configure logging
-    logger = get_logger("downloader")
+    logger = get_logger("core.download_file")
 
     file_utils.save_current_dl(gid=gid, user_id=str(ctx.author.id), guild_id=str(ctx.guild_id))
     try:
@@ -205,7 +205,7 @@ async def download_file(
 async def extract_from_download(gid: str, ctx: SlashContext, message: Message, dir_path: Path, extraction_type: str = "all", event = extraction_cancel_event) -> str | None:
     """Extracts files from the downloaded archive based on extraction type."""
     # Configure logging
-    logger = get_logger("extract_from_download")
+    logger = get_logger("core.extract_from_download")
 
     logger.info("Starting extraction of Matroska files from download with GID: %s", gid)
     files = aria2_service.get_files(gid)
@@ -280,7 +280,8 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
 
             # Always save mediainfo
             mediainfo = mkv_service_class.get_mediainfo(file)
-            mediainfo_path = file_utils.save_file_to_extract_dir(mediainfo.encode("utf-8"), "mediainfo.txt")
+            if mediainfo:
+                mediainfo_path = file_utils.save_file_to_extract_dir(mediainfo.encode("utf-8"), "mediainfo.txt")
 
             # Extract based on type
             if extraction_type in ["subtitles", "all", "all_without_audio"]:
@@ -297,7 +298,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
 
             # Files' paths to send
             output_files = [
-                mediainfo_path,
+                mediainfo_path if mediainfo else None,
                 chapters.get("path") if chapters else None
             ]
             output_files.extend(zipped_subs.paths if zipped_subs else [])
@@ -385,7 +386,7 @@ async def download_and_extract(
     extraction_cancel_event.clear()
 
     # Configure logging
-    logger = get_logger("download_and_extractor")
+    logger = get_logger("core.download_and_extractor")
 
     try:
         #region Initial checks

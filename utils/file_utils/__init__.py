@@ -160,7 +160,7 @@ def remove_allowed_channel(guild_id: str, channel_id: str, file_path: Path = Pat
 def load_queue(file_path: Path = Path(QUEUE_FILE)) -> list[QueueObject] | None:
     """Loads the download queue from a file."""
     # Configure logging
-    logger = get_logger("load_queue_utils")
+    logger = get_logger("file_utils.load_queue")
 
     try:
         if not file_path.exists():
@@ -204,7 +204,7 @@ def save_queue(user_id: str, links: list[str] | list[QueueItem], file_path: Path
         extraction_type: Default extraction type if links are strings
     """
     # Configure logging
-    logger = get_logger("save_queue_utils")
+    logger = get_logger("file_utils.save_queue")
 
     # Convert links to new format if needed
     normalized_links: list[QueueItem] = []
@@ -323,7 +323,7 @@ def clear_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)):
 def create_split_zip(zip_path: Path, part_size: int = DISCORD_MAX_FILE_SIZE) -> list[Path]:
     """Creates a split zip file from the specified zip file."""
     # Configure logging
-    logger = get_logger("create_split_zip")
+    logger = get_logger("file_utils.create_split_zip")
 
     if not zip_path.exists():
         logger.error("Zip file %s does not exist.", str(zip_path))
