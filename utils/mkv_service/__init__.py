@@ -41,26 +41,223 @@ class MKVService:
     """Service class for MKV file operations."""
 
     @staticmethod
+    def get_dynamic_timeout(mkv_path: str, extracting_video: bool = False) -> int:
+        """
+        Calculates a safe timeout in seconds based on MKV file size.
+        Assumes a conservative minimum read/write speed of ~25 MB/s (covers HDDs & decent NAS).
+
+        Args:
+            mkv_path: Path to the MKV file.
+            extracting_video: Whether the extraction includes video tracks (slower).
+        """
+        file_size_gb = os.path.getsize(mkv_path) / (1024 ** 3)
+
+        # Base 45s overhead + 40s per GB (or 60s per GB if extracting heavy video streams)
+        seconds_per_gb = 60 if extracting_video else 40
+        calculated = int(45 + (file_size_gb * seconds_per_gb))
+
+        # Enforce a minimum of 60s and a maximum cap of 30 minutes (1800s)
+        return max(60, min(calculated, 1800))
+
+    @staticmethod
+    def extract_mkv_tracks(cmd: list[str], timeout_sec: int = 300) -> bool:
+        """
+        Runs mkvextract and catches all possible OS, subprocess, and mkvextract exceptions.
+
+        Args:
+            cmd: List of strings representing the command to run]).
+            timeout_sec: Maximum seconds to wait before aborting.
+        """
+
+        logger = get_logger("mkv_service.extract_mkv_tracks")
+
+        try:
+            _result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",  # Prevents UnicodeDecodeError if mkvextract outputs corrupted bytes
+                check=True,
+                timeout=timeout_sec
+            )
+            return True
+
+        # 1. mkvextract ran, but returned a non-zero exit code (1 = Warning, 2 = Error, other = Crash)
+        except subprocess.CalledProcessError as e:
+            output = f"{e.stdout or ''}\n{e.stderr or ''}".strip()
+
+            if e.returncode == 1:
+                logger.warning("mkvextract finished with warnings (exit code 1):\n%s", output)
+                return True  # Change to False if you want warnings treated as failures
+            elif e.returncode == 2:
+                logger.error("mkvextract aborted with a fatal error (exit code 2):\n%s", output)
+            else:
+                logger.critical("[CRASH] mkvextract terminated unexpectedly (exit code %s):\n%s", e.returncode, output)
+            return False
+
+        # 2. The process hung (e.g., stalled on a network drive or corrupted file)
+        except subprocess.TimeoutExpired as e:
+            # Note: e.stdout / e.stderr are bytes here even when text=True
+            partial_out = (e.stdout or b"").decode("utf-8", errors="replace")
+            partial_err = (e.stderr or b"").decode("utf-8", errors="replace")
+            logger.error("[TIMEOUT] mkvextract exceeded %d seconds and was killed.", e.timeout)
+            if partial_out or partial_err:
+                logger.error("Partial output before timeout:\n%s\n%s", partial_out, partial_err)
+            return False
+
+        # 3. mkvextract executable was not found
+        except FileNotFoundError:
+            logger.error("[SYSTEM ERROR] 'mkvextract' executable not found. Ensure MKVToolNix is installed and in PATH.")
+            return False
+
+        # 4. OS denied execution (e.g., mkvextract binary lacks +x permission)
+        except PermissionError as e:
+            logger.error("[SYSTEM ERROR] Permission denied when trying to execute mkvextract: %s", e.strerror)
+            return False
+
+        # 5. Invalid arguments passed to subprocess.run (e.g., null bytes in file paths, bad timeout)
+        except ValueError as e:
+            logger.error("[ARGUMENT ERROR] Invalid parameters passed to subprocess: %s", e)
+            return False
+
+        # 6. Catch-all for remaining OS-level issues (e.g., path too long on Windows, out of memory, E2BIG)
+        except OSError as e:
+            logger.error("[OS ERROR] Operating system error occurred (errno %d): %s", e.errno, e.strerror)
+            return False
+
+        # 7. Catch-all for any unexpected Python/subprocess edge cases
+        except subprocess.SubprocessError as e:
+            logger.error("[SUBPROCESS ERROR] Unexpected subprocess failure: %s", e)
+            return False
+
+    @staticmethod
     def get_mediainfo(filepath: str):
         """Retrieves information about the MKV file."""
-        cmd = ["mediainfo", filepath]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout
+
+        logger = get_logger("mkv_service.get_mediainfo")
+        
+        try:
+            cmd = ["mediainfo", filepath]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",  # Prevents UnicodeDecodeError on weird file tags
+                check=True,        # Raises CalledProcessError on non-zero exit codes
+                )
+
+            # Ensure output isn't empty before parsing
+            if not result.stdout.strip():
+                logger.warning("MediaInfo returned empty output for %s. The file may be corrupted or unsupported.", filepath)
+            return result.stdout
+        except FileNotFoundError as exc:
+            logger.error(
+                "The 'mediainfo' executable was not found. "
+                "Ensure MediaInfo CLI is installed and added to your system PATH."
+            )
+
+        except PermissionError as exc:
+            logger.error(
+                "Permission denied when executing 'mediainfo' or reading '%s'.",
+                filepath
+            )
+
+        except subprocess.CalledProcessError as exc:
+            stderr_msg = exc.stderr.strip() if exc.stderr else "No error details provided."
+            logger.error(
+                "MediaInfo failed with exit code %d: %s",
+                exc.returncode,
+                stderr_msg
+            )
+
+        except OSError as exc:
+            # Catches low-level OS issues (e.g., Exec format error, E2BIG argument list too long)
+            logger.error("OS-level error occurred while running MediaInfo: %s", exc)
 
     @staticmethod
     def get_mkv_formatted_info(filepath: str) -> MKVMergeReturnType | None:
         """Retrieves formatted information about the MKV file."""
+
+        logger = get_logger("mkv_service.get_mkv_formatted_info")
+        
         try:
             cmd = ["mkvmerge", "-J", filepath]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",  # Protects against corrupted track names/tags
+                check=True
+            )
             info = json.loads(result.stdout)
 
             # Validate against your JSON schema
             validate(instance=info, schema=mkvmerge_schema)
             return info
-        except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
-            logger.error("Error retrieving MKV info: %s", e)
+        # 1. mkvmerge ran, but returned exit code 1 (Warning) or 2 (Fatal Error)
+        except subprocess.CalledProcessError as e:
+            logger = get_logger("mkv_service.get_mkv_formatted_info.CalledProcessError")
+            raw_stdout = (e.stdout or "").strip()
+            raw_stderr = (e.stderr or "").strip()
+
+            # mkvmerge -J still outputs valid JSON containing "errors" and "warnings" arrays on exit 1 or 2
+            try:
+                data = json.loads(raw_stdout)
+                errors = data.get("errors", [])
+                warnings = data.get("warnings", [])
+
+                if e.returncode == 1:
+                    logger.warning("mkvmerge completed with warnings: %s", warnings)
+                    # Validate against JSON schema
+                    validate(instance=data, schema=mkvmerge_schema)
+                    return data  # JSON is still complete and usable on exit code 1
+                elif e.returncode == 2:
+                    logger.error("mkvmerge failed to identify file: %s", errors)
+                    return None
+
+            except json.JSONDecodeError:
+                # Fallback if mkvmerge crashed before printing valid JSON
+                combined = f"{raw_stdout}\n{raw_stderr}".strip()
+                logger.error("[CRASH] mkvmerge exited with code %s and non-JSON output:\n%s", e.returncode, combined)
+                return None
+        
+            except ValidationError as ve:
+                logger.error("Schema validation error: %s", ve)
+                return None
+
+        # 2. Exit code was 0, but stdout contained malformed or empty JSON
+        except json.JSONDecodeError as e:
+            logger.error("[JSON ERROR] mkvmerge succeeded, but returned invalid JSON: %s", e)
             return None
+
+        # 4. mkvmerge is not installed or missing from system PATH
+        except FileNotFoundError:
+            logger.error("[SYSTEM ERROR] 'mkvmerge' executable not found. Ensure MKVToolNix is installed and in PATH.")
+            return None
+
+        # 5. OS denied execution permissions
+        except PermissionError as e:
+            logger.error("[SYSTEM ERROR] Permission denied executing mkvmerge: %s", e)
+            return None
+
+        # 6. Invalid arguments passed to subprocess.run (e.g., null bytes in path)
+        except ValueError as e:
+            logger.error("[ARGUMENT ERROR] Invalid parameters passed to subprocess: %s", e)
+            return None
+
+        # 7. Remaining OS-level failures (path too long, disk I/O error, etc.)
+        except OSError as e:
+            logger.error("[OS ERROR] Operating system error (errno %d): %s", e.errno, e.strerror)
+            return None
+
+        # 8. Catch-all for any unexpected subprocess edge cases
+        except subprocess.SubprocessError as e:
+            logger.error("[SUBPROCESS ERROR] Unexpected subprocess error: %s", e)
+            return None
+        
         except ValidationError as ve:
             logger.error("Schema validation error: %s", ve)
             return None
@@ -78,6 +275,9 @@ class MKVService:
             dict[str, Path|int] | None: A dictionary containing the paths of the extracted subtitle files and their count,
             or None if extraction failed or no subtitles were found.
         """
+
+        logger = get_logger("mkv_service.extract_subtitles")
+        
         try:
             os.makedirs(output_dir, exist_ok=True)
             info = MKVService.get_mkv_formatted_info(filepath)
@@ -115,7 +315,8 @@ class MKVService:
                         elif subtitle_codec == "S_HDMV/TEXTST" or "textst" in codec:
                             extension = "textst"
                         else:
-                            extension = "txt"
+                            logger.warning("Unknown subtitle codec: %s", subtitle_codec)
+                            continue
 
                         # Construct output path
                         out_path = os.path.join(
@@ -123,18 +324,22 @@ class MKVService:
                             f"subtitle_{s_id['id']}.{subtitle_language}.{extension}"
                         )
 
-                        try:
-                            # Command to extract subtitle track
-                            subprocess.run(
-                                ["mkvextract", filepath, "tracks", f"{s_id['id']}:{out_path}"],
-                                check=True,
-                                stdout=subprocess.DEVNULL
-                            )
-                            extracted_files.append(out_path)
-                            # logger.info("Extracted subtitle track %s.", str(path.basename(out_path)))
-                        except subprocess.CalledProcessError as e:
-                            logger.warning("Failed to extract subtitle track %s, skipping: %s", s_id.get("id"), e)
-                            continue
+                        # Command to extract subtitle track
+                        cmd = [
+                            "mkvextract",
+                            "--quiet",
+                            filepath,
+                            "tracks",
+                            f"{s_id['id']}:{out_path}"
+                        ]
+                        # Get dynamic timeout based on file size and whether it includes extracting the video track
+                        timeout_sec = MKVService.get_dynamic_timeout(filepath)
+
+                        # Command to extract subtitle track
+                        result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
+                        if not result:
+                            continue  # Skip to the next subtitle track if extraction failed
+                        extracted_files.append(out_path)
                     except subprocess.CalledProcessError as extract_error:
                         logger.warning("Failed to extract subtitle track %s, skipping: %s", s_id.get("id"), extract_error)
                         continue
@@ -171,10 +376,10 @@ class MKVService:
                 count=len(extracted_files)
             )
         except subprocess.CalledProcessError as e:
-            print(f"Error extracting subtitles: {e}")
+            logger.error("Error extracting subtitles: %s", e)
             return None
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error("Unexpected error: %s", ex)
             return None
 
     @staticmethod
@@ -190,6 +395,9 @@ class MKVService:
             dict[str, Path|int] | None: A dictionary containing the path of the extracted attachments or
             None if extraction failed or no attachments were found.
         """
+
+        logger = get_logger("mkv_service.extract_attachments")
+
         try:
             os.makedirs(output_dir, exist_ok=True)
             info = MKVService.get_mkv_formatted_info(filepath)
@@ -229,13 +437,23 @@ class MKVService:
                     safe_filename = f"{name_without_ext}.{extension}"
                     
                     out_path = os.path.join(output_dir, safe_filename)
+
+                    # Command to extract attachments
+                    cmd = [
+                        "mkvextract",
+                        "--quiet",
+                        filepath,
+                        "attachments",
+                        f"{a_id['id']}:{out_path}"
+                    ]
+                    # Get dynamic timeout based on file size and whether it includes extracting the video track
+                    timeout_sec = MKVService.get_dynamic_timeout(filepath)
                     
-                    subprocess.run(
-                        ["mkvextract", filepath, "attachments", f"{a_id['id']}:{out_path}"],
-                        check=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
+                    # Command to extract attachments
+                    result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
+                    if not result:
+                        continue  # Skip to the next attachment if extraction failed
+
                     extracted_files.append(out_path)
                 except subprocess.CalledProcessError as extract_error:
                     logger.warning("Failed to extract attachment %s, skipping: %s", a_id.get("id"), extract_error)
@@ -273,10 +491,10 @@ class MKVService:
                 count=len(extracted_files)
             )
         except subprocess.CalledProcessError as e:
-            print(f"Error extracting attachments: {e}")
+            logger.error("Error extracting attachments: %s", e)
             return None
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error("Unexpected error: %s", ex)
             return None
 
     @staticmethod
@@ -292,6 +510,9 @@ class MKVService:
             dict[str, Path|int] | None: A dictionary containing the path of the extracted chapters or
             None if extraction failed or no chapters were found.
         """
+
+        logger = get_logger("mkv_service.extract_chapters")
+
         try:
             os.makedirs(output_dir, exist_ok=True)
             info = MKVService.get_mkv_formatted_info(filepath)
@@ -304,12 +525,23 @@ class MKVService:
                 return None
 
             out_path = os.path.join(output_dir, "chapters.xml")
-            subprocess.run(
-                ["mkvextract", filepath, "chapters", ">", out_path],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
+
+            # Command to extract chapters
+            cmd = [
+                "mkvextract",
+                "--quiet",
+                filepath,
+                "chapters",
+                ">",
+                out_path
+            ]
+            # Get dynamic timeout based on file size and whether it includes extracting the video track
+            timeout_sec = MKVService.get_dynamic_timeout(filepath)
+
+            # Command to extract chapters
+            result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
+            if not result:
+                return None  # return None if extraction failed
 
             logger.info("Extracted %d chapters.", chapters[0].get("num_entries", 0) if chapters else 0)
 
@@ -318,10 +550,10 @@ class MKVService:
                 "count": chapters[0].get("num_entries", 0) if chapters else 0
             }
         except subprocess.CalledProcessError as e:
-            print(f"Error extracting chapters: {e}")
+            logger.error("Error extracting chapters: %s", e)
             return None
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error("Unexpected error: %s", ex)
             return None
 
     @staticmethod
@@ -337,6 +569,9 @@ class MKVService:
             MKVExtractReturnType | None: A dictionary containing the paths of the extracted audio files and their count,
             or None if extraction failed or no audio tracks were found.
         """
+
+        logger = get_logger("mkv_service.extract_audio")
+
         try:
             os.makedirs(output_dir, exist_ok=True)
             info = MKVService.get_mkv_formatted_info(filepath)
@@ -352,20 +587,41 @@ class MKVService:
                     try:
                         audio_codec = a_id.get("codec", "unknown").strip()
                         audio_language = a_id.get("properties", {}).get("language", "und")
-                        
-                        # Determine file extension based on codec
-                        if audio_codec == "AAC" or "aac" in audio_codec.lower():
+                        codec = audio_codec.lower()
+
+                        # Determine extension based on mkvmerge / mkvextract audio codec ID
+                        if audio_codec.startswith("A_AAC") or "aac" in codec:
                             extension = "aac"
-                        elif audio_codec == "MP3" or "mp3" in audio_codec.lower():
-                            extension = "mp3"
-                        elif audio_codec == "FLAC" or "flac" in audio_codec.lower():
+                        elif audio_codec in ("A_AC3", "AC-3") or ("ac3" in codec and "eac3" not in codec):
+                            extension = "ac3"
+                        elif audio_codec in ("A_EAC3", "E-AC-3") or "eac3" in codec or "e-ac-3" in codec:
+                            extension = "eac3"
+                        elif audio_codec.startswith("A_DTS") or "dts" in codec:
+                            extension = "dts"  # Covers DTS, DTS-HD MA, and DTS-HD HRA (all extract as raw .dts)
+                        elif audio_codec == "A_TRUEHD" or "truehd" in codec:
+                            extension = "thd"  # Raw TrueHD stream (Note: TrueHD+AC3 core extracts as .thd+ac3)
+                        elif audio_codec == "A_MLP" or "mlp" in codec:
+                            extension = "mlp"
+                        elif audio_codec == "A_FLAC" or "flac" in codec:
                             extension = "flac"
-                        elif audio_codec == "Opus" or "opus" in audio_codec.lower():
-                            extension = "opus"
-                        elif audio_codec == "Vorbis" or "vorbis" in audio_codec.lower():
+                        elif audio_codec == "A_OPUS" or "opus" in codec:
+                            extension = "opus"  # mkvextract wraps raw Opus packets into an .opus (Ogg) container
+                        elif audio_codec == "A_VORBIS" or "vorbis" in codec:
                             extension = "ogg"
+                        elif audio_codec == "A_MPEG/L3" or "mp3" in codec:
+                            extension = "mp3"
+                        elif audio_codec in ("A_MPEG/L2", "A_MPEG/L1") or "mp2" in codec:
+                            extension = "mp2"
+                        elif audio_codec.startswith("A_PCM") or "pcm" in codec:
+                            extension = "wav"  # mkvextract automatically writes a WAV header for PCM tracks
+                        elif audio_codec == "A_ALAC" or "alac" in codec:
+                            extension = "caf"  # mkvextract wraps ALAC inside a Core Audio Format (.caf) container
+                        elif audio_codec == "A_WAVPACK4" or "wavpack" in codec:
+                            extension = "wv"
+                        elif audio_codec == "A_TTA1" or "tta" in codec:
+                            extension = "tta"
                         else:
-                            extension = "mka"  # Matroska Audio as fallback
+                            extension = "mka"  # Fallback: wrap unknown audio codecs cleanly in a Matroska Audio container
 
                         # Naming: single track as "audio", multiple tracks as "audio_2", "audio_3", etc.
                         if audio_track_number == 1:
@@ -376,12 +632,22 @@ class MKVService:
                         out_path = os.path.join(output_dir, audio_name)
 
                         # Command to extract audio track
-                        subprocess.run(
-                            ["mkvextract", filepath, "tracks", f"{a_id['id']}:{out_path}"],
-                            check=True,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL
-                        )
+                        cmd = [
+                            "mkvextract",
+                            "--quiet",
+                            filepath,
+                            "tracks",
+                            f"{a_id['id']}:{out_path}"
+                        ]
+                        # Get dynamic timeout based on file size and whether it includes extracting the video track
+                        timeout_sec = MKVService.get_dynamic_timeout(filepath)
+
+                        # Command to extract audio track
+                        result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
+                        if not result:
+                            continue  # Skip to the next audio track if extraction failed
+
+                        # Append the successfully extracted file path to the list
                         extracted_files.append(out_path)
                         audio_track_number += 1
                     except subprocess.CalledProcessError as extract_error:
@@ -421,15 +687,23 @@ class MKVService:
                 count=len(extracted_files)
             )
         except subprocess.CalledProcessError as e:
-            print(f"Error extracting audio: {e}")
+            logger.error("Error extracting audio: %s", e)
             return None
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error("Unexpected error: %s", ex)
             return None
 
     @staticmethod
     def extract_tracks(filepath: str, output_dir: Path = Path(EXTRACT_DIR)):
-        """Extracts tracks from the MKV file to the specified output directory."""
+        """Extracts tracks from the MKV file to the specified output directory.
+        
+        Args:
+            filepath (str): The path to the MKV file.
+            output_dir (Path): The directory to save extracted tracks.
+        """
+
+        logger = get_logger("mkv_service.extract_tracks")
+
         os.makedirs(output_dir, exist_ok=True)
         info = MKVService.get_mkv_formatted_info(filepath)
 
@@ -440,6 +714,7 @@ class MKVService:
         for t_id in info.get("tracks", []):
             if t_id.get("type") == "video":
                 out_path = os.path.join(output_dir, f"track_{t_id['id']}.mkv")
+                logger.info("Extracting video track %d.", t_id["id"])
                 subprocess.run(
                     ["mkvextract", "tracks", filepath, f"{t_id['id']}:{out_path}"],
                     check=True,

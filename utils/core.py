@@ -280,7 +280,8 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
 
             # Always save mediainfo
             mediainfo = mkv_service_class.get_mediainfo(file)
-            mediainfo_path = file_utils.save_file_to_extract_dir(mediainfo.encode("utf-8"), "mediainfo.txt")
+            if mediainfo:
+                mediainfo_path = file_utils.save_file_to_extract_dir(mediainfo.encode("utf-8"), "mediainfo.txt")
 
             # Extract based on type
             if extraction_type in ["subtitles", "all", "all_without_audio"]:
@@ -297,7 +298,7 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
 
             # Files' paths to send
             output_files = [
-                mediainfo_path,
+                mediainfo_path if mediainfo else None,
                 chapters.get("path") if chapters else None
             ]
             output_files.extend(zipped_subs.paths if zipped_subs else [])
