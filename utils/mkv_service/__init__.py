@@ -297,7 +297,7 @@ class MKVService:
                         elif subtitle_codec == "S_TEXT/ASS" or "ass" in codec:
                             extension = "ass"
                         elif subtitle_codec in ("SubStationAlpha", "S_TEXT/SSA") or "ssa" in codec:
-                            extension = "ssa"
+                            extension = "ass" # mkvextract outputs SSA as .ass, even though the codec is technically SSA
                         elif subtitle_codec == "S_TEXT/WEBVTT" or any(k in codec for k in ("webvtt", "vtt")):
                             extension = "vtt"
                         elif subtitle_codec in ("S_HDMV/PGS", "HDMV PGS") or any(k in codec for k in ("pgs", "sup")):

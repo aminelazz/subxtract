@@ -6,7 +6,7 @@ A Discord bot for downloading and extracting content from MKV (Matroska) files. 
 
 - **Download Management**: Download files using torrents, magnet links, or direct download links via Aria2
 - **MKV Extraction**: Extract the following from MKV files:
-  - Subtitles (SRT, ASS, SSA formats)
+  - Subtitles (SRT, ASS, SSA, WebVTT, PGS, VobSub, DVB subtitles, and other supported MKV subtitle codecs)
   - Attachments (fonts, images, etc.)
   - Chapters (XML format)
   - Media information and metadata
@@ -182,7 +182,8 @@ python bot.py
 #### Download & Extraction
 - `/extract <url>` - Download and extract content from MKV file(s)
   - Supports: Torrent files, magnet links, direct download URLs
-  - `extraction_type` selects the content to extract
+  - `extraction_type` supports `subtitles`, `attachments`, `chapters`, `audio`,
+    `all`, and `all_without_audio`
   - `select` is an optional boolean, `False` by default; when `True`, sends
     a Cloudflare-hosted aria2 torrent file-selection page
 
@@ -263,6 +264,8 @@ subxtract/
 2. **Extraction Phase**:
    - Scans downloaded files for MKV containers
    - Extracts subtitles, attachments, chapters, and metadata
+   - Counts subtitle tracks rather than generated files; VobSub `.idx`/`.sub`
+     pairs are included in the archive but reported as one subtitle
    - Packages extracted content into zip files
    - Splits large files to meet Discord's upload limit
 
@@ -290,6 +293,8 @@ APP_ID=your_bot_app_id
 USERID=1000
 GROUPID=1000
 SUBXTRACT_DATA_DIR=/home/your-user/docker/subxtract/data
+# Optional image tag; defaults to latest
+IMAGE_TAG=latest
 ```
 
 Start and inspect the container:
@@ -310,6 +315,17 @@ Stop the service with `docker compose down`.
 When selection is enabled, the torrent remains paused until the user submits
 the selection page. The 20 GB size check is performed after selection, before
 the selected torrent files continue downloading.
+
+To build the image from a specific repository branch instead of using the
+published image, build with the `REPO_BRANCH` argument:
+
+```bash
+docker build --build-arg REPO_BRANCH=dev -t username/subxtract:TAG .
+IMAGE_TAG=dev docker compose up -d
+```
+
+`docker-compose.yml` uses `IMAGE_TAG` to select the published image tag and
+defaults to `latest`.
 
 ## Configuration Details
 
