@@ -11,9 +11,6 @@ from config import ARIA2_RPC_HOST, ARIA2_RPC_PORT, ARIA2_RPC_SECRET, DOWNLOAD_DI
 from utils.logger import get_logger
 from ._types import DownloadStatus, Files
 
-# Configure logging
-logger = get_logger("aria2_service")
-
 client = aria2p.Client(host=ARIA2_RPC_HOST,
                   port=int(ARIA2_RPC_PORT),
                   secret=ARIA2_RPC_SECRET)
@@ -21,6 +18,9 @@ api = aria2p.API(client)
 
 def check_connection() -> bool:
     """Checks the connection to the Aria2 RPC server."""
+    # Configure logging
+    logger = get_logger("aria2_service.check_connection")
+
     try:
         jsonreq = json.dumps(
             {
@@ -82,6 +82,9 @@ def get_status(gid: str) -> DownloadStatus:
 
 def get_files(gid: str) -> list[Files] | None:
     """Retrieves selected, fully downloaded Matroska files for a download GID."""
+    # Configure logging
+    logger = get_logger("aria2_service.get_files")
+
     try:
         task = api.get_download(gid)
         file_list: list[Files] = [
@@ -104,6 +107,9 @@ def get_files(gid: str) -> list[Files] | None:
 
 def pause_download(gid: str) -> bool:
     """Pauses an aria2 download."""
+    # Configure logging
+    logger = get_logger("aria2_service.pause_download")
+
     try:
         api.get_download(gid).pause()
 
@@ -119,6 +125,9 @@ def pause_download(gid: str) -> bool:
 
 def resume_download(gid: str) -> bool:
     """Resumes an aria2 download."""
+    # Configure logging
+    logger = get_logger("aria2_service.resume_download")
+
     try:
         api.get_download(gid).resume()
 

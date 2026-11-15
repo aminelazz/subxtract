@@ -12,9 +12,6 @@ from gen_types import mkvmerge_return_type
 from utils.file_utils import DISCORD_MAX_FILE_SIZE, create_split_zip
 from utils.logger import get_logger
 
-# Define logger
-logger = get_logger("mkv_service")
-
 # Define MKV merge return type
 MKVMergeReturnType = mkvmerge_return_type.MkvmergeIdentificationOutput
 

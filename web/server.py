@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import asyncio
 from contextlib import asynccontextmanager
@@ -16,8 +15,11 @@ from fastapi.templating import Jinja2Templates
 
 from config import ARIA2_RPC_HOST, ARIA2_RPC_PORT, ARIA2_RPC_SECRET
 from web import nodes
+from utils.logger import get_logger
 
-logger = logging.getLogger("web.server")
+# Configure logging
+logger = get_logger("web.server")
+
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 MAX_DOWNLOAD_SIZE = 20 * 1024 * 1024 * 1024
 
@@ -137,6 +139,9 @@ async def get_torrent_files(
     pin: str = Query(""),
     mode: str = Query("get"),
 ):
+    # Configure logging
+    logger = get_logger("web.server.get_torrent_files")
+    
     del request
     if mode != "get":
         raise HTTPException(status_code=400, detail="mode must be get.")
@@ -165,6 +170,9 @@ async def submit_torrent_selection(
     pin: str = Query(""),
     mode: str = Query("selection"),
 ):
+    # Configure logging
+    logger = get_logger("web.server.submit_torrent_selection")
+
     if mode != "selection":
         raise HTTPException(status_code=400, detail="mode must be selection.")
     _validate_pin(gid, pin)
