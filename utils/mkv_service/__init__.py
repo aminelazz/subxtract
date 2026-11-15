@@ -340,6 +340,14 @@ class MKVService:
                         if not result:
                             continue  # Skip to the next subtitle track if extraction failed
                         extracted_files.append(out_path)
+                        if extension == "idx":
+                            # mkvextract automatically creates a .sub file alongside the .idx file
+                            sub_file_path = os.path.join(
+                                output_dir,
+                                f"subtitle_{s_id['id']}.{subtitle_language}.sub"
+                            )
+                            if os.path.exists(sub_file_path):
+                                extracted_files.append(sub_file_path)
                     except subprocess.CalledProcessError as extract_error:
                         logger.warning("Failed to extract subtitle track %s, skipping: %s", s_id.get("id"), extract_error)
                         continue
