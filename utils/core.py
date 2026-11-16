@@ -211,7 +211,7 @@ async def extract_from_download(
         dir_path: Path,
         extraction_type: str = "all",
         event = extraction_cancel_event
-    ) -> str | None:
+    ) -> None:
     """Extracts files from the downloaded archive based on extraction type.
     
     Args:
@@ -224,7 +224,7 @@ async def extract_from_download(
         event (asyncio.Event): The event to check for cancellation.
         
     Returns:
-        str | None: The name of the extracted file, or None if extraction failed.
+        None
     """
 
     # Configure logging
@@ -285,7 +285,7 @@ async def extract_from_download(
         # Set up a working directory for extraction if there are multiple files
         file_name_without_ext = Path(file_path).stem
         if len(files) > 1:
-            workdir = Path(EXTRACT_DIR) / dl_name / file_name_without_ext
+            workdir = Path(EXTRACT_DIR) / dl_name / f"{i:02d}_{file_name_without_ext}"
         else:
             workdir = Path(EXTRACT_DIR) / dl_name
         workdir.mkdir(parents=True, exist_ok=True)

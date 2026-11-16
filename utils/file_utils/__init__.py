@@ -27,7 +27,7 @@ def get_temp_files(path: Path) -> dict[str, list[str]] | None:
 
     Returns:
         dict | None: A dictionary containing full paths and relative filenames of the files found,
-                      or None if the path does not exist.
+            or None if the path does not exist.
     """
     file_list: list[str] = []
     if not path.exists():
@@ -387,16 +387,27 @@ def create_split_zip(zip_path: Path, part_size: int = DISCORD_MAX_FILE_SIZE) -> 
 
     return zip_files
 
-def read_log_file(log_file_path: Path) -> str | None:
+def read_log_file(log_file_path: Path, max_bytes: int | None = None) -> str | None:
     """Reads the content of a log file.
     
     Args:
         log_file_path (Path): The path to the log file.
+        max_bytes (int | None): Maximum number of trailing bytes to read. If None, reads the entire file.
 
     Returns:
         str | None: The content of the log file, or None if the file does not exist."""
 
     if not log_file_path.exists():
         return None
+    
+    # If max_bytes is specified, read only the last max_bytes of the file
+    if max_bytes is not None:
+        with open(log_file_path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            f.seek(max(0, file_size - max_bytes))
+            return f.read().decode("utf-8", errors="replace")
+
+    # If max_bytes is not specified, read the entire file
     with open(log_file_path, "r", encoding="utf-8", errors="replace") as f:
         return f.read()
