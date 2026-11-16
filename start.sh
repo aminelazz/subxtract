@@ -62,4 +62,4 @@ fi
 printf "%s\n" "$TUNNEL_URL" > "$URL_FILE"
 echo "Cloudflare tunnel URL: $TUNNEL_URL"
 
-exec python3.10 ./bot.py | tee -a "$BOT_LOG"
+python3.10 -u ./bot.py 2>&1 | tee -a "$BOT_LOG"
