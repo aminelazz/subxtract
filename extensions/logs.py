@@ -1,7 +1,7 @@
 """Logs extension for sending log files."""
 
 from pathlib import Path
-from interactions import Extension, SlashContext, slash_command, check, slash_option, OptionType
+from interactions import Extension, SlashContext, slash_command, check, slash_option, OptionType, File
 
 from utils.core import is_allowed_channel
 from utils.logger import get_logger
@@ -63,7 +63,12 @@ class Logs(Extension):
 
         # Check if the log file was successfully read and send it to the user
         if log_file and log_name:
-            await ctx.send(file=log_file, filename=log_name)
+            await ctx.send(
+                file=File(
+                    file=log_file,
+                    file_name=log_name,
+                )
+            )
         else:
             logger.error("Failed to read log file: %s", log_name)
             await ctx.send("Log file not found.")
