@@ -1,5 +1,6 @@
 """Logs extension for sending log files."""
 
+from io import BytesIO
 from pathlib import Path
 from interactions import Extension, SlashContext, slash_command, check, slash_option, OptionType, File
 
@@ -65,7 +66,7 @@ class Logs(Extension):
         if log_file and log_name:
             await ctx.send(
                 file=File(
-                    file=log_file,
+                    file=BytesIO(log_file.encode("utf-8")),
                     file_name=log_name,
                 )
             )
