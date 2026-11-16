@@ -149,13 +149,13 @@ class MKVService:
             if not result.stdout.strip():
                 logger.warning("MediaInfo returned empty output for %s. The file may be corrupted or unsupported.", file_path)
             return result.stdout
-        except FileNotFoundError as exc:
+        except FileNotFoundError:
             logger.error(
                 "The 'mediainfo' executable was not found. "
                 "Ensure MediaInfo CLI is installed and added to your system PATH."
             )
 
-        except PermissionError as exc:
+        except PermissionError:
             logger.error(
                 "Permission denied when executing 'mediainfo' or reading '%s'.",
                 file_path
