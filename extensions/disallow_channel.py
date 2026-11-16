@@ -5,7 +5,7 @@ from utils import file_utils
 from utils.logger import get_logger
 
 # Configure logging
-logger = get_logger("disallow_channel")
+logger = get_logger(__name__)
 
 class DisallowChannel(Extension):
     """Extension for disallowing specific channels."""

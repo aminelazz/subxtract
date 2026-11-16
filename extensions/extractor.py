@@ -6,7 +6,7 @@ from utils import aria2_service, core, file_utils
 from utils.logger import get_logger
 
 # Configure logging
-logger = get_logger("extractor")
+logger = get_logger(__name__)
 
 class Extractor(Extension):
     """Extension for downloading, managing MKV extraction and upload."""

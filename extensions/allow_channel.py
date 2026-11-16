@@ -5,7 +5,7 @@ from utils import file_utils
 from utils.logger import get_logger
 
 # Configure logging
-logger = get_logger("allow_channel")
+logger = get_logger(__name__)
 
 class AllowChannel(Extension):
     """Extension for allowing specific channels."""

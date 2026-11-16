@@ -7,7 +7,7 @@ from utils.logger import get_logger
 from utils.controller import extraction_cancel_event
 
 # Configure logging
-logger = get_logger("start_queue")
+logger = get_logger(__name__)
 
 class StartQueue(Extension):
     """

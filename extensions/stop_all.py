@@ -7,7 +7,7 @@ from utils.controller import extraction_cancel_event
 from utils.core import is_allowed_channel
 
 # Configure logging
-logger = get_logger("stop_all")
+logger = get_logger(__name__)
 
 class StopAll(Extension):
     """Extension for stopping all processes (if initiated by the same user)."""

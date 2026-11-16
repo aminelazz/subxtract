@@ -5,7 +5,7 @@ from utils.logger import get_logger
 from utils.core import get_bot_infos, get_commands, is_allowed_channel
 
 # Configure logging
-logger = get_logger("help")
+logger = get_logger(__name__)
 
 class Help(Extension):
     """Extension for showing help information."""

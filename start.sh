@@ -14,7 +14,10 @@ if [ ! -x "$CF_BIN" ]; then
     chmod +x "$CF_BIN"
 fi
 
-aria2c --conf-path=./config/aria2.conf --enable-color=false > "$ARIA2_LOG" 2>&1 &
+aria2c --conf-path=./config/aria2.conf \
+    --enable-color=false \
+    --log="$ARIA2_LOG" \
+    --log-level=info >> "$ARIA2_LOG" 2>&1 &
 ARIA2_PID=$!
 
 python3.10 -m uvicorn web.server:app \
