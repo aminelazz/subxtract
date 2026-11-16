@@ -1,6 +1,6 @@
 # Subxtract
 
-A Discord bot for downloading and extracting content from MKV (Matroska) files. Subxtract automates the process of downloading media files via Aria2 and extracting subtitles, attachments, chapters, and metadata from MKV containers.
+A Discord bot for downloading and extracting content from MKV (Matroska) files. Subxtract automates the process of downloading media files via Aria2 and extracting subtitles, attachments, audio tracks, chapters, and metadata from MKV containers.
 
 ## Features
 
@@ -8,6 +8,7 @@ A Discord bot for downloading and extracting content from MKV (Matroska) files. 
 - **MKV Extraction**: Extract the following from MKV files:
   - Subtitles (SRT, ASS, SSA, WebVTT, PGS, VobSub, DVB subtitles, and other supported MKV subtitle codecs)
   - Attachments (fonts, images, etc.)
+  - Audio tracks
   - Chapters (XML format)
   - Media information and metadata
 - **Queue System**: Manage multiple download requests with a per-user queue
@@ -15,7 +16,8 @@ A Discord bot for downloading and extracting content from MKV (Matroska) files. 
 - **Real-time Progress**: Track download progress with live status updates
 - **Torrent File Selection**: Select individual torrent files and folders before downloading
 - **Cloudflare Tunnel**: Publish the torrent selection interface for Discord users
-- **Split File Support**: Automatically split large zip files to fit Discord's 10MB upload limit
+- **Split File Support**: Automatically split large zip files to fit Discord's 20MB upload limit
+- **Log Inspection**: Retrieve runtime logs (bot, Aria2, Cloudflare Tunnel, and web server) directly in Discord
 - **Cancellation**: Stop ongoing downloads and extractions at any time
 
 ## Requirements
@@ -127,6 +129,12 @@ aria2c --enable-rpc --rpc-listen-all=false --rpc-listen-port=6800 \
 
 # Using aria2.conf file
 aria2c --conf-path="./config/aria2.conf"
+
+# Using aria2.conf with log file redirection (for /logs command)
+aria2c --conf-path="./config/aria2.conf" \
+       --enable-color=false \
+       --log=/tmp/aria2.log \
+       --log-level=info >> /tmp/aria2.log 2>&1 &
 ```
 
 ### 7. Create Required Directories
@@ -142,6 +150,9 @@ files and folders from a torrent:
 
 ```bash
 python -m uvicorn web.server:app --host 0.0.0.0 --port 8765
+
+# With log redirection (for /logs command)
+python -m uvicorn web.server:app --host 127.0.0.1 --port 8765 > /tmp/web_server.log 2>&1 &
 ```
 
 Open `http://localhost:8765/app/files` locally. The bot supplies the GID and
@@ -154,6 +165,9 @@ RPC port (`6800`):
 
 ```bash
 cloudflared tunnel --url http://localhost:8765
+
+# With log redirection (for /logs command)
+cloudflared tunnel --url http://127.0.0.1:8765 --no-autoupdate > /tmp/cf_tunnel.log 2>&1 &
 ```
 
 Save the generated `https://*.trycloudflare.com` URL in:
@@ -171,6 +185,9 @@ URLs change after a restart.
 
 ```bash
 python bot.py
+
+# Unbuffered output streamed to terminal and saved to /tmp/bot.log (for /logs command)
+python -u bot.py 2>&1 | tee -a /tmp/bot.log
 ```
 
 ### Discord Commands
@@ -198,6 +215,8 @@ python bot.py
 - `/status` - Check current download status
 - `/stop_all` - Stop the current download/extraction
 - `/force_stop_all` - Force stop all operations and clean up
+- `/logs <log_type>` - Download runtime log files (`bot`, `aria2`, `cf_tunnel`, or `web_server`)
+- `/help` - Display available bot commands and their descriptions
 
 ## Project Structure
 
@@ -224,7 +243,9 @@ subxtract/
 │   ├── disallow_channel.py    # Remove channel permissions
 │   ├── status.py              # Download status
 │   ├── stop_all.py            # Stop operations
-│   └── force_stop_all.py      # Force stop operations
+│   ├── force_stop_all.py      # Force stop operations
+│   ├── logs.py                # Send runtime log files
+│   └── help.py                # Help command
 ├── utils/                      # Utility modules
 │   ├── aria2_service/         # Aria2 download management
 │   │   ├── __init__.py
@@ -263,16 +284,16 @@ subxtract/
 
 2. **Extraction Phase**:
    - Scans downloaded files for MKV containers
-   - Extracts subtitles, attachments, chapters, and metadata
+   - Extracts subtitles (`subtitles/`), attachments (`attachments/`), audio tracks (`audio/`), chapters (`chapters.xml`), and metadata (`mediainfo.txt`) into a structured directory (`<dl_name>/`, with per-file subdirectories when multiple MKV files are processed)
    - Counts subtitle tracks rather than generated files; VobSub `.idx`/`.sub`
      pairs are included in the archive but reported as one subtitle
-   - Packages extracted content into zip files
-   - Splits large files to meet Discord's upload limit
+   - Compresses the extracted directory into a single `<dl_name>.zip` archive
+   - Splits archives exceeding Discord's 20MB upload limit into parts and generates `merge_commands.txt`
 
 3. **Upload Phase**:
-   - Uploads extracted content to Discord
-   - Provides merge commands for split files
-   - Displays extraction statistics
+   - Uploads the archive (or split parts in batches of up to 10 files per message) to Discord
+   - Provides merge commands for split files in `merge_commands.txt`
+   - Logs extraction statistics
 
 4. **Cleanup**:
    - Removes temporary files
@@ -377,10 +398,16 @@ The project uses a custom logger accessible via:
 ```python
 from utils.logger import get_logger
 
-logger = get_logger("module_name")
+logger = get_logger(__name__)
 logger.info("Info message")
 logger.error("Error message")
 ```
+
+When started via [start.sh](start.sh), runtime logs are written to `/tmp/`:
+- `/tmp/bot.log` (also streamed to terminal via `tee`)
+- `/tmp/aria2.log`
+- `/tmp/cf_tunnel.log`
+- `/tmp/web_server.log`
 
 ## Troubleshooting
 
@@ -400,10 +427,10 @@ logger.error("Error message")
 - Check that all tools are in system PATH
 
 ### Large files won't upload
-- Files larger than 10MB are automatically split
+- Files larger than 20MB are automatically split
 - Use the provided merge commands to reassemble split files
 
-## License
+<!-- ## License
 
 *Add your license information here*
 
@@ -413,4 +440,4 @@ logger.error("Error message")
 
 ## Support
 
-*Add support contact information here*
+*Add support contact information here* -->

@@ -6,7 +6,7 @@ from utils.controller import extraction_cancel_event
 from utils.core import is_allowed_channel
 
 # Configure logging
-logger = get_logger("force_stop_all")
+logger = get_logger(__name__)
 
 class ForceStopAll(Extension):
     """Extension for stopping all processes."""

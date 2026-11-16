@@ -6,7 +6,7 @@ from utils.logger import get_logger
 from utils.core import is_allowed_channel
 
 # Configure logging
-logger = get_logger("clear_queue")
+logger = get_logger(__name__)
 
 class ClearQueue(Extension):
     """Extension for clearing user queues."""

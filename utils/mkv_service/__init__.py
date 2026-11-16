@@ -20,10 +20,10 @@ class MKVExtractReturnType(dict):
     """Return type for MKV extraction functions."""
     def __init__(self, **data):
         super().__init__(**data)
-        self.paths = data.get("paths", [])
+        self.paths = data.get("paths", Path(EXTRACT_DIR))
         self.count = data.get("count", 0)
 
-    paths: list[Path]
+    paths: Path
     """List of extracted file paths."""
     count: int
     """Count of extracted items."""
@@ -129,13 +129,13 @@ class MKVService:
             return False
 
     @staticmethod
-    def get_mediainfo(filepath: str):
+    def get_mediainfo(file_path: str):
         """Retrieves information about the MKV file."""
 
         logger = get_logger("mkv_service.get_mediainfo")
         
         try:
-            cmd = ["mediainfo", filepath]
+            cmd = ["mediainfo", file_path]
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -147,18 +147,18 @@ class MKVService:
 
             # Ensure output isn't empty before parsing
             if not result.stdout.strip():
-                logger.warning("MediaInfo returned empty output for %s. The file may be corrupted or unsupported.", filepath)
+                logger.warning("MediaInfo returned empty output for %s. The file may be corrupted or unsupported.", file_path)
             return result.stdout
-        except FileNotFoundError as exc:
+        except FileNotFoundError:
             logger.error(
                 "The 'mediainfo' executable was not found. "
                 "Ensure MediaInfo CLI is installed and added to your system PATH."
             )
 
-        except PermissionError as exc:
+        except PermissionError:
             logger.error(
                 "Permission denied when executing 'mediainfo' or reading '%s'.",
-                filepath
+                file_path
             )
 
         except subprocess.CalledProcessError as exc:
@@ -174,13 +174,13 @@ class MKVService:
             logger.error("OS-level error occurred while running MediaInfo: %s", exc)
 
     @staticmethod
-    def get_mkv_formatted_info(filepath: str) -> MKVMergeReturnType | None:
+    def get_mkv_formatted_info(file_path: str) -> MKVMergeReturnType | None:
         """Retrieves formatted information about the MKV file."""
 
         logger = get_logger("mkv_service.get_mkv_formatted_info")
         
         try:
-            cmd = ["mkvmerge", "-J", filepath]
+            cmd = ["mkvmerge", "-J", file_path]
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -260,12 +260,15 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_subtitles(filepath: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
+    def extract_subtitles(
+        file_path: str,
+        output_dir: Path = Path(EXTRACT_DIR)
+    ) -> MKVExtractReturnType | None:
         """
         Extracts subtitles from the MKV file to the specified output directory.
 
         Args:
-            filepath (str): The path to the MKV file.
+            file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted subtitles.
 
         Returns:
@@ -277,7 +280,7 @@ class MKVService:
         
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(filepath)
+            info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
@@ -326,12 +329,12 @@ class MKVService:
                         cmd = [
                             "mkvextract",
                             "--quiet",
-                            filepath,
+                            file_path,
                             "tracks",
                             f"{s_id['id']}:{out_path}"
                         ]
                         # Get dynamic timeout based on file size and whether it includes extracting the video track
-                        timeout_sec = MKVService.get_dynamic_timeout(filepath)
+                        timeout_sec = MKVService.get_dynamic_timeout(file_path)
 
                         # Command to extract subtitle track
                         result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
@@ -360,27 +363,8 @@ class MKVService:
             subs_count = len(extracted_files) - idx_subs  # Exclude .sub files from the count
             logger.info("Extracted %d subtitle files.", subs_count)
 
-            zip_file_path = os.path.join(output_dir, "subtitles.zip")
-            with zipfile.ZipFile(zip_file_path, "w") as zipf:
-                for file in extracted_files:
-                    zipf.write(file, arcname=os.path.basename(file))
-
-            # Check zip file size
-            zip_file_size = os.path.getsize(zip_file_path)
-            if zip_file_size > DISCORD_MAX_FILE_SIZE:
-                logger.warning("Subtitles zip file exceeds 20 MiB, splitting...")
-                try:
-                    split_files = create_split_zip(Path(zip_file_path), part_size=DISCORD_MAX_FILE_SIZE)
-                    return MKVExtractReturnType(
-                        paths=split_files,
-                        count=subs_count
-                    )
-                except Exception as split_ex:
-                    logger.error("Error splitting subtitles zip file: %s", split_ex)
-                    return None
-            
             return MKVExtractReturnType(
-                paths=[Path(zip_file_path)],
+                paths=output_dir,
                 count=subs_count
             )
         except subprocess.CalledProcessError as e:
@@ -391,24 +375,24 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_attachments(filepath: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
+    def extract_attachments(file_path: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
         """
         Extracts attachments from the MKV file to the specified output directory.
         
         Args:
-            filepath (str): The path to the MKV file.
+            file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted attachments.
 
         Returns:
-            dict[str, Path|int] | None: A dictionary containing the path of the extracted attachments or
-            None if extraction failed or no attachments were found.
+            MKVExtractReturnType | None: An instance of MKVExtractReturnType containing the path of the extracted
+            attachments or None if extraction failed or no attachments were found.
         """
 
         logger = get_logger("mkv_service.extract_attachments")
 
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(filepath)
+            info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
@@ -444,18 +428,19 @@ class MKVService:
                     name_without_ext = os.path.splitext(attachment_name)[0][:50]
                     safe_filename = f"{name_without_ext}.{extension}"
                     
+                    # Construct output path
                     out_path = os.path.join(output_dir, safe_filename)
 
                     # Command to extract attachments
                     cmd = [
                         "mkvextract",
                         "--quiet",
-                        filepath,
+                        file_path,
                         "attachments",
                         f"{a_id['id']}:{out_path}"
                     ]
                     # Get dynamic timeout based on file size and whether it includes extracting the video track
-                    timeout_sec = MKVService.get_dynamic_timeout(filepath)
+                    timeout_sec = MKVService.get_dynamic_timeout(file_path)
                     
                     # Command to extract attachments
                     result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
@@ -475,27 +460,8 @@ class MKVService:
 
             logger.info("Extracted %d attachments.", len(extracted_files))
 
-            zip_file_path = os.path.join(output_dir, "attachments.zip")
-            with zipfile.ZipFile(zip_file_path, "w") as zipf:
-                for file in extracted_files:
-                    zipf.write(file, arcname=os.path.basename(file))
-
-            # Check zip file size
-            zip_file_size = os.path.getsize(zip_file_path)
-            if zip_file_size > DISCORD_MAX_FILE_SIZE:
-                logger.warning("Attachments zip file exceeds 20 MiB, splitting...")
-                try:
-                    split_files = create_split_zip(Path(zip_file_path), part_size=DISCORD_MAX_FILE_SIZE)
-                    return MKVExtractReturnType(
-                        paths=split_files,
-                        count=len(extracted_files)
-                    )
-                except Exception as split_ex:
-                    logger.error("Error splitting attachments zip file: %s", split_ex)
-                    return None
-            
             return MKVExtractReturnType(
-                paths=[Path(zip_file_path)],
+                paths=output_dir,
                 count=len(extracted_files)
             )
         except subprocess.CalledProcessError as e:
@@ -506,24 +472,24 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_chapters(filepath: str, output_dir: Path = Path(EXTRACT_DIR)) -> dict[str, Path|int] | None:
+    def extract_chapters(file_path: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
         """
         Extracts chapters from the MKV file to the specified output directory.
         
         Args:
-            filepath (str): The path to the MKV file.
+            file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted chapters.
 
         Returns:
-            dict[str, Path|int] | None: A dictionary containing the path of the extracted chapters or
-            None if extraction failed or no chapters were found.
+            MKVExtractReturnType | None: An instance of MKVExtractReturnType containing the path
+            of the extracted chapters or None if extraction failed or no chapters were found.
         """
 
         logger = get_logger("mkv_service.extract_chapters")
 
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(filepath)
+            info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
@@ -538,13 +504,12 @@ class MKVService:
             cmd = [
                 "mkvextract",
                 "--quiet",
-                filepath,
+                file_path,
                 "chapters",
-                ">",
                 out_path
             ]
             # Get dynamic timeout based on file size and whether it includes extracting the video track
-            timeout_sec = MKVService.get_dynamic_timeout(filepath)
+            timeout_sec = MKVService.get_dynamic_timeout(file_path)
 
             # Command to extract chapters
             result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
@@ -553,10 +518,10 @@ class MKVService:
 
             logger.info("Extracted %d chapters.", chapters[0].get("num_entries", 0) if chapters else 0)
 
-            return {
-                "path": Path(out_path),
-                "count": chapters[0].get("num_entries", 0) if chapters else 0
-            }
+            return MKVExtractReturnType(
+                paths=Path(out_path),
+                count=chapters[0].get("num_entries", 0) if chapters else 0
+            )
         except subprocess.CalledProcessError as e:
             logger.error("Error extracting chapters: %s", e)
             return None
@@ -565,31 +530,32 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_audio(filepath: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
+    def extract_audio(file_path: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
         """
         Extracts audio tracks from the MKV file to the specified output directory.
         
         Args:
-            filepath (str): The path to the MKV file.
+            file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted audio.
 
         Returns:
-            MKVExtractReturnType | None: A dictionary containing the paths of the extracted audio files and their count,
-            or None if extraction failed or no audio tracks were found.
+            MKVExtractReturnType | None: An instance of MKVExtractReturnType containing the paths of
+            the extracted audio files and their count, or None if extraction failed or no audio
+            tracks were found.
         """
 
         logger = get_logger("mkv_service.extract_audio")
 
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(filepath)
+            info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
 
             extracted_files = []
             audio_track_number = 1
-            
+
             for a_id in info.get("tracks", []):
                 if a_id.get("type") == "audio":
                     try:
@@ -643,12 +609,12 @@ class MKVService:
                         cmd = [
                             "mkvextract",
                             "--quiet",
-                            filepath,
+                            file_path,
                             "tracks",
                             f"{a_id['id']}:{out_path}"
                         ]
                         # Get dynamic timeout based on file size and whether it includes extracting the video track
-                        timeout_sec = MKVService.get_dynamic_timeout(filepath)
+                        timeout_sec = MKVService.get_dynamic_timeout(file_path)
 
                         # Command to extract audio track
                         result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
@@ -671,27 +637,9 @@ class MKVService:
                 return None
 
             logger.info("Extracted %d audio files.", len(extracted_files))
-            zip_file_path = os.path.join(output_dir, "audio.zip")
-            with zipfile.ZipFile(zip_file_path, "w") as zipf:
-                for file in extracted_files:
-                    zipf.write(file, arcname=os.path.basename(file))
 
-            # Check zip file size
-            zip_file_size = os.path.getsize(zip_file_path)
-            if zip_file_size > DISCORD_MAX_FILE_SIZE:
-                logger.warning("Audio zip file exceeds 20 MiB, splitting...")
-                try:
-                    split_files = create_split_zip(Path(zip_file_path), part_size=DISCORD_MAX_FILE_SIZE)
-                    return MKVExtractReturnType(
-                        paths=split_files,
-                        count=len(extracted_files)
-                    )
-                except Exception as split_ex:
-                    logger.error("Error splitting audio zip file: %s", split_ex)
-                    return None
-            
             return MKVExtractReturnType(
-                paths=[Path(zip_file_path)],
+                paths=output_dir,
                 count=len(extracted_files)
             )
         except subprocess.CalledProcessError as e:
@@ -702,7 +650,7 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_tracks(filepath: str, output_dir: Path = Path(EXTRACT_DIR)):
+    def extract_tracks(file_path: str, output_dir: Path = Path(EXTRACT_DIR)):
         """Extracts tracks from the MKV file to the specified output directory.
         
         Args:
@@ -713,7 +661,7 @@ class MKVService:
         logger = get_logger("mkv_service.extract_tracks")
 
         os.makedirs(output_dir, exist_ok=True)
-        info = MKVService.get_mkv_formatted_info(filepath)
+        info = MKVService.get_mkv_formatted_info(file_path)
 
         if not info:
             return []
@@ -724,7 +672,7 @@ class MKVService:
                 out_path = os.path.join(output_dir, f"track_{t_id['id']}.mkv")
                 logger.info("Extracting video track %d.", t_id["id"])
                 subprocess.run(
-                    ["mkvextract", "tracks", filepath, f"{t_id['id']}:{out_path}"],
+                    ["mkvextract", "tracks", file_path, f"{t_id['id']}:{out_path}"],
                     check=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL

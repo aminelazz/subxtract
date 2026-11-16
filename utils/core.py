@@ -10,7 +10,7 @@ import requests
 from interactions import File
 from interactions import Message, SlashContext
 
-from config import DISCORD_TOKEN, APP_ID, TUNNEL_URL_FILE
+from config import DISCORD_TOKEN, APP_ID, EXTRACT_DIR, TUNNEL_URL_FILE
 from utils import aria2_service, file_utils, mkv_service
 from utils.controller import extraction_cancel_event
 from utils.logger import get_logger
@@ -38,19 +38,20 @@ def remove_duplicates_preserve_order(links: list[str]) -> list[str]:
     return unique_links
 
 def get_merge_commands(
-        files: list[Path],track_type: Literal["subs", "attachments", "audio"]
+        files: list[Path],
+        file_name: str
     ) -> str:
-    """Generates commands for merging zip files (subtitles, attachments, or audio)."""
+    """Generates commands for merging zip files."""
     separated_by_plus_sign = " + ".join([f'"{os.path.basename(file)}"' for file in files])
     separated_by_space = " ".join([f'"{os.path.basename(file)}"' for file in files])
 
-    windows_command = f'copy /b {separated_by_plus_sign} {track_type}.zip'
-    unix_command = f'cat {separated_by_space} > {track_type}.zip'
+    windows_command = f'copy /b {separated_by_plus_sign} "{file_name}".zip'
+    unix_command = f'cat {separated_by_space} > "{file_name}".zip'
 
     return (
-        f"To merge the {track_type} into a single zip file, use the following commands:\n"
-        f"```Windows:\n{windows_command}\n\n"
-        f"Linux/Unix:\n{unix_command}```"
+        f"To merge the {file_name} into a single zip file, use the following commands:\n"
+        f"Windows:\n{windows_command}\n\n"
+        f"Linux/Unix:\n{unix_command}"
     )
 
 # Get Bot infos
@@ -202,8 +203,30 @@ async def download_file(
         file_utils.clear_temp()
         return False
 
-async def extract_from_download(gid: str, ctx: SlashContext, message: Message, dir_path: Path, extraction_type: str = "all", event = extraction_cancel_event) -> str | None:
-    """Extracts files from the downloaded archive based on extraction type."""
+async def extract_from_download(
+        gid: str,
+        dl_name: str,
+        ctx: SlashContext,
+        message: Message,
+        dir_path: Path,
+        extraction_type: str = "all",
+        event = extraction_cancel_event
+    ) -> None:
+    """Extracts files from the downloaded archive based on extraction type.
+    
+    Args:
+        gid (str): The GID of the download.
+        dl_name (str): The name of the downloaded file.
+        ctx (SlashContext): The context of the command.
+        message (Message): The message to update.
+        dir_path (Path): The path to the directory where the files are stored.
+        extraction_type (str): The type of extraction to perform.
+        event (asyncio.Event): The event to check for cancellation.
+        
+    Returns:
+        None
+    """
+
     # Configure logging
     logger = get_logger("core.extract_from_download")
 
@@ -230,9 +253,6 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         os.path.relpath(file_path, dir_path)
         for file_path in files
     ]
-    await ctx.send(
-        f"Processing {len(files)} selected downloaded Matroska file(s)."
-    )
 
     # Chunk the files list to respect Discord's 2000-character limit
     header = "Selected downloaded files:\n"
@@ -254,9 +274,22 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
         current_chunk += "```"
         await ctx.send(current_chunk)
 
+    # Send a message indicating the start of the extraction process
+    message = await ctx.send(
+        f"Processing {len(files)} selected downloaded Matroska file(s)."
+    )
+
     # Perform extraction
     total_files = len(files)
     for i, file_path in enumerate(files, start=1):
+        # Set up a working directory for extraction if there are multiple files
+        file_name_without_ext = Path(file_path).stem
+        if len(files) > 1:
+            workdir = Path(EXTRACT_DIR) / dl_name / f"{i:02d}_{file_name_without_ext}"
+        else:
+            workdir = Path(EXTRACT_DIR) / dl_name
+        workdir.mkdir(parents=True, exist_ok=True)
+
         # Check for cancellation
         if event.is_set():
             aria2_service.remove_all_downloads(force=True)
@@ -265,115 +298,104 @@ async def extract_from_download(gid: str, ctx: SlashContext, message: Message, d
             await ctx.send("Extraction has been cancelled.")
             logger.info("Extraction for download with GID: %s has been cancelled.", gid)
             return
+
         logger.info("Processing selected downloaded file (%d/%d)", i, total_files)
-        message = await ctx.send(f"Processing selected file ({i}/{total_files})...")
+        logger.info("%s", Path(file_path).name)
+        await message.edit(content=f"Processing selected file ({i}/{total_files})...")
         file = str(file_path)
         try:
             mkv_service_class = mkv_service.MKVService()
 
             # Initialize extraction results
-            zipped_subs = None
-            zipped_attachments = None
-            zipped_audio = None
+            extracted_subs = None
+            extracted_attachments = None
+            extracted_audio = None
             chapters = None
             mediainfo_path = None
 
             # Always save mediainfo
             mediainfo = mkv_service_class.get_mediainfo(file)
             if mediainfo:
-                mediainfo_path = file_utils.save_file_to_extract_dir(mediainfo.encode("utf-8"), "mediainfo.txt")
+                mediainfo_path = file_utils.save_file_to_extract_dir(
+                    content=mediainfo.encode("utf-8"),
+                    file_name="mediainfo.txt",
+                    path=workdir
+                )
 
             # Extract based on type
             if extraction_type in ["subtitles", "all", "all_without_audio"]:
-                zipped_subs = mkv_service_class.extract_subtitles(file)
-
-            if extraction_type in ["attachments", "all", "all_without_audio"]:
-                zipped_attachments = mkv_service_class.extract_attachments(file)
-
-            if extraction_type in ["chapters", "all", "all_without_audio"]:
-                chapters = mkv_service_class.extract_chapters(file)
-
-            if extraction_type in ["audio", "all"]:
-                zipped_audio = mkv_service_class.extract_audio(file)
-
-            # Files' paths to send
-            output_files = [
-                mediainfo_path if mediainfo else None,
-                chapters.get("path") if chapters else None
-            ]
-            output_files.extend(zipped_subs.paths if zipped_subs else [])
-            output_files.extend(zipped_attachments.paths if zipped_attachments else [])
-            output_files.extend(zipped_audio.paths if zipped_audio else [])
-
-            logger.info("Finished processing MKV file, Uploading results...")
-            await message.edit(content="Uploading results...")
-
-            # Build the summary message
-            summary = f"`{os.path.basename(file)}`\n```"
-
-            if extraction_type in ["subtitles", "all", "all_without_audio"]:
-                summary += f"Subtitles: {zipped_subs.count if zipped_subs else 0}\n"
-
-            if extraction_type in ["attachments", "all", "all_without_audio"]:
-                summary += f"Attachments: {zipped_attachments.count if zipped_attachments else 0}\n"
-
-            if extraction_type in ["chapters", "all", "all_without_audio"]:
-                summary += f"Chapters: {chapters.get('count') if chapters else 0}\n"
-
-            if extraction_type in ["audio", "all"]:
-                summary += f"Audio Tracks: {zipped_audio.count if zipped_audio else 0}\n"
-
-            summary += "```"
-
-            # Build merge commands if needed
-            merge_commands = ""
-
-            if extraction_type in ["subtitles", "all", "all_without_audio"] and zipped_subs and len(zipped_subs.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_subs.paths, 'subs')}\n"
-
-            if extraction_type in ["attachments", "all", "all_without_audio"] and zipped_attachments and len(zipped_attachments.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_attachments.paths, 'attachments')}\n"
-
-            if extraction_type in ["audio", "all"] and zipped_audio and len(zipped_audio.paths) > 1:
-                merge_commands += f"{get_merge_commands(zipped_audio.paths, 'audio')}\n"
-
-            if merge_commands:
-                merge_commands_path = file_utils.save_file_to_extract_dir(
-                    merge_commands.encode("utf-8"), "merge_commands.txt"
-                )
-                output_files.append(merge_commands_path)
-
-            # Batch up to 10 files to test Discord's multi-attachment upload limit.
-            valid_paths = [path for path in output_files if path is not None]
-            valid_files = [
-                File(file=path, file_name=os.path.basename(path)) for path in valid_paths
-            ]
-            file_chunks = [
-                valid_files[index:index + 10]
-                for index in range(0, len(valid_files), 10)
-            ]
-
-            if file_chunks:
-                # Edit the initial message with the summary text and the first 10 files
-                await message.edit(
-                    content=summary,
-                    files=file_chunks[0]
+                extracted_subs = mkv_service_class.extract_subtitles(
+                    file_path=file,
+                    output_dir=workdir / "subtitles"
                 )
 
-                # If there are more than 10 files, send the remaining batches as new messages
-                for extra_chunk in file_chunks[1:]:
-                    await ctx.send(files=extra_chunk)
+            if extraction_type in ["attachments", "all", "all_without_audio"]:
+                extracted_attachments = mkv_service_class.extract_attachments(
+                    file_path=file,
+                    output_dir=workdir / "attachments"
+                )
+
+            if extraction_type in ["chapters", "all", "all_without_audio"]:
+                chapters = mkv_service_class.extract_chapters(
+                    file_path=file,
+                    output_dir=workdir
+                )
+
+            if extraction_type in ["audio", "all"]:
+                extracted_audio = mkv_service_class.extract_audio(
+                    file_path=file,
+                    output_dir=workdir / "audio"
+                )
+
+            if not any([extracted_subs, extracted_attachments, extracted_audio, chapters]):
+                logger.warning(
+                    "No extractable content found in file: %s", os.path.basename(file)
+                )
             else:
-                # Fallback if somehow there are absolutely no files to attach
-                await message.edit(content=summary)
-
-            total_files_sent = sum(len(chunk) for chunk in file_chunks)
-            logger.info("Finished upload results for: %s (Total files sent: %d)", os.path.basename(file), total_files_sent)
+                logger.info(
+                    "Extracted: %d subtitles, %d attachments, %d audio tracks, %s chapters from file: %s",
+                    extracted_subs.count if extracted_subs else 0,
+                    extracted_attachments.count if extracted_attachments else 0,
+                    extracted_audio.count if extracted_audio else 0,
+                    chapters.count if chapters else 0,
+                    os.path.basename(file)
+                )
         except Exception as e:
             await ctx.send(f"An error occurred while extracting MKV info from `{os.path.basename(file)}`: {e}")
             logger.error("An error occurred while extracting MKV info from %s: %s", os.path.basename(file), e)
             continue
-        file_utils.clear_extract_dir()
+
+    logger.info("Finished processing all files, Uploading results...")
+    await message.edit(content="Uploading results...")
+
+    # Add Parent folder to archive
+    parent_folder = Path(EXTRACT_DIR) / dl_name
+    zip_file_path = file_utils.compress_directory(
+        folder_path=parent_folder,
+        zip_path=Path(EXTRACT_DIR) / f"{dl_name}.zip"
+        )
+
+    if zip_file_path is None:
+        logger.error("Failed to create compressed archive for: %s", dl_name)
+        await ctx.send(f"Error: Failed to create compressed archive for `{dl_name}`.")
+        aria2_service.remove_all_downloads(force=True)
+        file_utils.clear_current_dl()
+        file_utils.clear_temp()
+        return None
+
+    # Build the summary message
+    caption = (
+        f"`{dl_name} ({len(files)} file(s) processed)`\n"
+    )
+
+    # Upload the zip file to Discord
+    await upload_and_send_to_discord(
+        ctx=ctx,
+        message=message,
+        caption=caption,
+        zip_file_path=zip_file_path,
+        dl_name=dl_name
+    )
 
 async def download_and_extract(
     ctx: SlashContext,
@@ -386,7 +408,7 @@ async def download_and_extract(
     extraction_cancel_event.clear()
 
     # Configure logging
-    logger = get_logger("core.download_and_extractor")
+    logger = get_logger("core.download_and_extract")
 
     try:
         #region Initial checks
@@ -581,9 +603,98 @@ async def download_and_extract(
         #endregion
 
         #region ---- Stage 2: Extraction ----
-        await extract_from_download(gid=gid, ctx=ctx, message=message, dir_path=dir_path, extraction_type=extraction_type)
+        dl_status = aria2_service.get_status(gid)
+        
+        # Extract file name and cut it to 100 characters to avoid issues with long names
+        dl_name = dl_status.name[:100] if dl_status else "Unknown"
+        await extract_from_download(
+            gid=gid,
+            dl_name=dl_name,
+            ctx=ctx,
+            message=message,
+            dir_path=dir_path,
+            extraction_type=extraction_type
+        )
         return True
     except Exception as e:
         await ctx.send(f"An unexpected error occurred: {e}")
         logger.error("An unexpected error occurred: %s", e)
         return False
+
+async def upload_and_send_to_discord(
+        ctx: SlashContext,
+        message: Message,
+        caption: str,
+        zip_file_path: Path,
+        dl_name: str,
+    ) -> bool:
+    """Uploads files to Discord."""
+    logger = get_logger("core.upload_and_send_to_discord")
+
+    # Define the list to hold files to upload
+    files_to_upload: list[Path] = []
+
+    # Check zip file size & split if necessary
+    zip_file_size = os.path.getsize(zip_file_path)
+    if zip_file_size > file_utils.DISCORD_MAX_FILE_SIZE:
+        logger.warning("Archive file exceeds 20 MiB, splitting...")
+        try:
+            # Create split zip files
+            split_files = file_utils.create_split_zip(
+                zip_path=Path(zip_file_path),
+                part_size=file_utils.DISCORD_MAX_FILE_SIZE
+            )
+
+            files_to_upload.extend(split_files)
+
+            # Build merge commands if needed
+            merge_commands = f"{get_merge_commands(split_files, dl_name)}\n"
+            if merge_commands:
+                merge_commands_path = file_utils.save_file_to_extract_dir(
+                    content=merge_commands.encode("utf-8"),
+                    file_name="merge_commands.txt"
+                )
+                files_to_upload.append(merge_commands_path)
+
+            # Batch up to 10 files to test Discord's multi-attachment upload limit.
+            valid_paths = [path for path in files_to_upload if path is not None]
+            valid_files = [
+                File(file=path, file_name=os.path.basename(path)) for path in valid_paths
+            ]
+            file_chunks = [
+                valid_files[index:index + 10]
+                for index in range(0, len(valid_files), 10)
+            ]
+            
+            if file_chunks:
+                # Edit the initial message with the summary text and the first 10 files
+                await message.edit(
+                    content=caption,
+                    files=file_chunks[0]
+                )
+
+                # If there are more than 10 files, send the remaining batches as new messages
+                for extra_chunk in file_chunks[1:]:
+                    await ctx.send(files=extra_chunk)
+            else:
+                # Fallback if somehow there are absolutely no files to attach
+                await message.edit(content=caption)
+
+            total_files_sent = sum(len(chunk) for chunk in file_chunks)
+            logger.info("Finished upload results for: %s (Total files sent: %d)", os.path.basename(zip_file_path), total_files_sent)
+            return True
+        except Exception as split_ex:
+            logger.error("Error splitting archive zip file: %s", split_ex)
+            return False
+    else:
+        # If the zip file is within size limits, send it directly
+        try:
+            await message.edit(
+                content=caption,
+                files=[File(file=zip_file_path, file_name=os.path.basename(zip_file_path))]
+            )
+            logger.info("Finished upload results for: %s", os.path.basename(zip_file_path))
+            return True
+        except Exception as upload_ex:
+            logger.error("Error uploading archive zip file: %s", upload_ex)
+            return False

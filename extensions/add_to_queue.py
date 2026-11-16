@@ -6,7 +6,7 @@ from utils.logger import get_logger
 from utils.core import is_allowed_channel
 
 # Configure logging
-logger = get_logger("add_to_queue")
+logger = get_logger(__name__)
 
 class AddToQueue(Extension):
     """Extension for adding links to the queue."""

@@ -2,11 +2,12 @@
 
 from interactions import Extension, SlashContext, OptionType
 from interactions import slash_command, slash_option, check
-from utils import aria2_service, core, file_utils
+from utils import aria2_service, file_utils
+import utils.core as core
 from utils.logger import get_logger
 
 # Configure logging
-logger = get_logger("extractor")
+logger = get_logger(__name__)
 
 class Extractor(Extension):
     """Extension for downloading, managing MKV extraction and upload."""
