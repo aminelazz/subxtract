@@ -3,10 +3,10 @@ set -eu
 
 CF_BIN=/subxtract/data/cloudflared
 URL_FILE=/subxtract/data/cloudflare_tunnel_url.txt
-CF_LOG=/tmp/cf_tunnel.log
-WEB_LOG=/tmp/web.log
-ARIA2_LOG=/tmp/aria2.log
 BOT_LOG=/tmp/bot.log
+ARIA2_LOG=/tmp/aria2.log
+CF_LOG=/tmp/cf_tunnel.log
+WEB_LOG=/tmp/web_server.log
 
 if [ ! -x "$CF_BIN" ]; then
     wget -qO "$CF_BIN" \

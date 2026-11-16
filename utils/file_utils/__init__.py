@@ -346,3 +346,17 @@ def create_split_zip(zip_path: Path, part_size: int = DISCORD_MAX_FILE_SIZE) -> 
     # os.remove(zip_path)
 
     return zip_files
+
+def read_log_file(log_file_path: Path) -> str | None:
+    """Reads the content of a log file.
+    
+    Args:
+        log_file_path (Path): The path to the log file.
+
+    Returns:
+        str | None: The content of the log file, or None if the file does not exist."""
+
+    if not log_file_path.exists():
+        return None
+    with open(log_file_path, "r", encoding="utf-8", errors="replace") as f:
+        return f.read()
