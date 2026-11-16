@@ -45,8 +45,8 @@ def get_merge_commands(
     separated_by_plus_sign = " + ".join([f'"{os.path.basename(file)}"' for file in files])
     separated_by_space = " ".join([f'"{os.path.basename(file)}"' for file in files])
 
-    windows_command = f'copy /b {separated_by_plus_sign} {file_name}.zip'
-    unix_command = f'cat {separated_by_space} > {file_name}.zip'
+    windows_command = f'copy /b {separated_by_plus_sign} "{file_name}".zip'
+    unix_command = f'cat {separated_by_space} > "{file_name}".zip'
 
     return (
         f"To merge the {file_name} into a single zip file, use the following commands:\n"
@@ -253,9 +253,6 @@ async def extract_from_download(
         os.path.relpath(file_path, dir_path)
         for file_path in files
     ]
-    await ctx.send(
-        f"Processing {len(files)} selected downloaded Matroska file(s)."
-    )
 
     # Chunk the files list to respect Discord's 2000-character limit
     header = "Selected downloaded files:\n"
@@ -277,6 +274,11 @@ async def extract_from_download(
         current_chunk += "```"
         await ctx.send(current_chunk)
 
+    # Send a message indicating the start of the extraction process
+    message = await ctx.send(
+        f"Processing {len(files)} selected downloaded Matroska file(s)."
+    )
+
     # Perform extraction
     total_files = len(files)
     for i, file_path in enumerate(files, start=1):
@@ -296,8 +298,10 @@ async def extract_from_download(
             await ctx.send("Extraction has been cancelled.")
             logger.info("Extraction for download with GID: %s has been cancelled.", gid)
             return
+
         logger.info("Processing selected downloaded file (%d/%d)", i, total_files)
-        message = await ctx.send(f"Processing selected file ({i}/{total_files})...")
+        logger.info("%s", Path(file_path).name)
+        await message.edit(content=f"Processing selected file ({i}/{total_files})...")
         file = str(file_path)
         try:
             mkv_service_class = mkv_service.MKVService()
@@ -393,10 +397,6 @@ async def extract_from_download(
         dl_name=dl_name
     )
 
-    # aria2_service.remove_all_downloads(force=True)
-    # file_utils.clear_current_dl()
-    # file_utils.clear_temp()
-
 async def download_and_extract(
     ctx: SlashContext,
     url: str,
@@ -408,7 +408,7 @@ async def download_and_extract(
     extraction_cancel_event.clear()
 
     # Configure logging
-    logger = get_logger("core.download_and_extractor")
+    logger = get_logger("core.download_and_extract")
 
     try:
         #region Initial checks
@@ -604,7 +604,9 @@ async def download_and_extract(
 
         #region ---- Stage 2: Extraction ----
         dl_status = aria2_service.get_status(gid)
-        dl_name = dl_status.name if dl_status else "Unknown"
+        
+        # Extract file name and cut it to 100 characters to avoid issues with long names
+        dl_name = dl_status.name[:100] if dl_status else "Unknown"
         await extract_from_download(
             gid=gid,
             dl_name=dl_name,
