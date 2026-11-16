@@ -2,9 +2,11 @@
 set -eu
 
 CF_BIN=/subxtract/data/cloudflared
+URL_FILE=/subxtract/data/cloudflare_tunnel_url.txt
 CF_LOG=/tmp/cf_tunnel.log
 WEB_LOG=/tmp/web.log
-URL_FILE=/subxtract/data/cloudflare_tunnel_url.txt
+ARIA2_LOG=/tmp/aria2.log
+BOT_LOG=/tmp/bot.log
 
 if [ ! -x "$CF_BIN" ]; then
     wget -qO "$CF_BIN" \
@@ -12,7 +14,7 @@ if [ ! -x "$CF_BIN" ]; then
     chmod +x "$CF_BIN"
 fi
 
-aria2c --conf-path=./config/aria2.conf &
+aria2c --conf-path=./config/aria2.conf > "$ARIA2_LOG" 2>&1 &
 ARIA2_PID=$!
 
 python3.10 -m uvicorn web.server:app \
@@ -60,4 +62,4 @@ fi
 printf "%s\n" "$TUNNEL_URL" > "$URL_FILE"
 echo "Cloudflare tunnel URL: $TUNNEL_URL"
 
-exec python3.10 ./bot.py
+exec python3.10 ./bot.py | tee "$BOT_LOG"
