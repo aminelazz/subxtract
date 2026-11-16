@@ -34,8 +34,8 @@ def get_temp_files(path: Path) -> dict[str, list[str]] | None:
         return None
 
     for root, _dirs, files in os.walk(path):
-        for filename in files:
-            full_path = os.path.join(root, filename)
+        for file_name in files:
+            full_path = os.path.join(root, file_name)
             file_list.append(full_path)
 
     # Remove all files except matroska files
@@ -45,7 +45,7 @@ def get_temp_files(path: Path) -> dict[str, list[str]] | None:
     # Return a dict containing file with full paths & relative paths
     return {
         "full_paths": file_list,
-        "filenames": [os.path.relpath(f, path) for f in file_list]
+        "file_names": [os.path.relpath(f, path) for f in file_list]
     }
 
 def clear_download_dir(path: Path = Path(DOWNLOAD_DIR)):
@@ -66,9 +66,18 @@ def clear_directory(path: Path):
         shutil.rmtree(path)
         path.mkdir(parents=True, exist_ok=True)
 
-def save_file_to_extract_dir(content: bytes, filename: str):
-    """Saves content to a file in the extract directory."""
-    filepath = Path(EXTRACT_DIR) / filename
+def save_file_to_extract_dir(content: bytes, file_name: str, path: Path = Path(EXTRACT_DIR)) -> Path:
+    """Saves content to a file in the extract directory.
+    
+    Args:
+        content (bytes): The content to write to the file.
+        file_name (str): The name of the file to create.
+        path (Path): The path to the directory where the file will be saved.
+
+    Returns:
+        Path: The path to the created file.
+    """
+    filepath = path / file_name
     filepath.parent.mkdir(parents=True, exist_ok=True)
     with open(filepath, "wb") as f:
         f.write(content)
@@ -320,8 +329,39 @@ def clear_user_queue(user_id: str, file_path: Path = Path(QUEUE_FILE)):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+def compress_directory(folder_path: Path, zip_path: Path) -> Path | None:
+    """
+    Creates a zip file from the specified folder.
+    
+    Args:
+        folder_path (Path): The path to the folder to zip.
+        zip_path (Path): The path where the zip file will be created.
+        
+    Returns:
+        Path | None: The path to the created zip file, or None if the folder does not exist.
+    """
+    # Configure logging
+    logger = get_logger("file_utils.compress_directory")
+
+    if not folder_path.exists():
+        logger.error("Folder %s does not exist.", str(folder_path))
+        return None
+
+    shutil.make_archive(str(zip_path.with_suffix('')), 'zip', str(folder_path))
+    logger.info("Created zip file: %s", str(zip_path))
+    return zip_path
+
 def create_split_zip(zip_path: Path, part_size: int = DISCORD_MAX_FILE_SIZE) -> list[Path]:
-    """Creates a split zip file from the specified zip file."""
+    """
+    Creates a split zip file from the specified zip file.
+    
+    Args:
+        zip_path (Path): The path to the zip file to split.
+        part_size (int): The maximum size of each split part in bytes. Default is 20 MB.
+
+    Returns:
+        list[Path]: A list of the paths to the created split zip files.
+    """
     # Configure logging
     logger = get_logger("file_utils.create_split_zip")
 
