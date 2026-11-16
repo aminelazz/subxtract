@@ -43,23 +43,29 @@ class Logs(Extension):
 
         # Read the appropriate log file based on the log_type
         log_file = None
+        log_name = None
         if log_type == "bot":
             logger.info("Sending bot log file.")
             log_file = read_log_file(BOT_LOG)
+            log_name = "bot.log"
         elif log_type == "aria2":
             logger.info("Sending Aria2 log file.")
             log_file = read_log_file(ARIA2_LOG)
+            log_name = "aria2.log"
         elif log_type == "cf_tunnel":
             logger.info("Sending Cloudflare Tunnel log file.")
             log_file = read_log_file(CF_LOG)
+            log_name = "cf_tunnel.log"
         elif log_type == "web_server":
             logger.info("Sending Web Server log file.")
             log_file = read_log_file(WEB_LOG)
+            log_name = "web_server.log"
 
         # Check if the log file was successfully read and send it to the user
-        if log_file:
-            await ctx.send(file=log_file)
+        if log_file and log_name:
+            await ctx.send(file=log_file, filename=log_name)
         else:
+            logger.error("Failed to read log file: %s", log_name)
             await ctx.send("Log file not found.")
 
 def setup(bot):
