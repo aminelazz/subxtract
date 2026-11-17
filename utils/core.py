@@ -4,7 +4,6 @@ import asyncio
 import os
 import re
 from pathlib import Path
-from typing import Literal
 
 import requests
 from interactions import File
