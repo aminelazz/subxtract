@@ -4,7 +4,6 @@ import asyncio
 import os
 import re
 from pathlib import Path
-from typing import Literal
 
 import requests
 from interactions import File
@@ -45,8 +44,8 @@ def get_merge_commands(
     separated_by_plus_sign = " + ".join([f'"{os.path.basename(file)}"' for file in files])
     separated_by_space = " ".join([f'"{os.path.basename(file)}"' for file in files])
 
-    windows_command = f'copy /b {separated_by_plus_sign} "{file_name}".zip'
-    unix_command = f'cat {separated_by_space} > "{file_name}".zip'
+    windows_command = f'copy /b {separated_by_plus_sign} "{file_name}.zip"'
+    unix_command = f'cat {separated_by_space} > "{file_name}.zip"'
 
     return (
         f"To merge the {file_name} into a single zip file, use the following commands:\n"
