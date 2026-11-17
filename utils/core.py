@@ -10,7 +10,7 @@ from interactions import File
 from interactions import Message, SlashContext
 
 from config import DISCORD_TOKEN, APP_ID, EXTRACT_DIR, TUNNEL_URL_FILE
-from utils import aria2_service, file_utils, mkv_service
+from utils import aria2_service, file_utils, mkv_service, upload
 from utils.controller import extraction_cancel_event
 from utils.logger import get_logger
 
@@ -386,6 +386,29 @@ async def extract_from_download(
     caption = (
         f"`{dl_name} ({len(files)} file(s) processed)`\n"
     )
+
+    # Upload to BUZZHEAVIER or GOFILE based on user preference
+    try:
+        success = upload.upload_file(
+            message=message,
+            file_path=zip_file_path,
+            upload_dest="BUZZHEAVIER",  # Change to "GOFILE" if you want to use GOFILE instead
+            headers=None  # Add any required headers here
+        )
+        if not success:
+            logger.error("Upload failed for: %s", dl_name)
+            await ctx.send(f"Error: Upload failed for `{dl_name}`.")
+            aria2_service.remove_all_downloads(force=True)
+            file_utils.clear_current_dl()
+            file_utils.clear_temp()
+            return None
+    except Exception as e:
+        logger.error("An error occurred during upload for %s: %s", dl_name, e)
+        await ctx.send(f"An error occurred during upload for `{dl_name}`: {e}")
+        aria2_service.remove_all_downloads(force=True)
+        file_utils.clear_current_dl()
+        file_utils.clear_temp()
+        return None
 
     # Upload the zip file to Discord
     await upload_and_send_to_discord(

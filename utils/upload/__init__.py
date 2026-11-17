@@ -1,13 +1,25 @@
-"""Upload utilities for the subxtract project."""
+"""Robust upload function with granular exception handling."""
 
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, Literal
+from urllib.parse import quote
+from typing import Any, BinaryIO, Dict, Generator, Literal
+import os
 
+from interactions import Message
 import requests
-from tqdm import tqdm
-from._types import UploadProgressType, UploadProgressTypeDict
+from requests.exceptions import (
+    ConnectionError as ReqConnectionError,
+    HTTPError,
+    InvalidURL,
+    MissingSchema,
+    RequestException,
+    Timeout,
+)
+from tqdm.auto import tqdm
+
 from utils.logger import get_logger
 from config import BUZZHEAVIER_URL, GOFILE_URL
+from._types import UploadProgressType, UploadProgressTypeDict, UploadResult, GofileUploadResultDict, GofileUploadResult
 
 logger = get_logger(__name__)
 
@@ -96,55 +108,138 @@ class UploadProgress:
         """Close the progress bar."""
         self.progress_bar.close()
 
+class UploadError(Exception):
+    """Custom base exception for upload failures."""
+    pass
+
 def upload_file(
+        message: Message,
         file_path: Path | str,
         upload_dest: Literal["BUZZHEAVIER", "GOFILE"],
-        headers: Dict[str, Any] | None = None
-    ) -> None:
+        headers: Dict[str, Any] | None = None,
+        chunk_size: int = 64 * 1024,  # 64 KB is optimal for socket throughput
+    ) -> UploadResult:
     """
-    Uploads a file to the specified URL with progress tracking.
-    
+    Uploads a file to the specified destination with streaming progress tracking
+    and comprehensive exception handling.
     Args:
-        file_path (Path | str): The path to the file to be uploaded.
-        upload_dest (Literal["BUZZHEAVIER", "GOFILE"]): The destination for the upload.
-        headers (Dict[str, Any] | None): Optional headers to include in the request.
-        
-    Raises:
-        ValueError: If an invalid upload destination is specified.
-        
+        message (Message): Discord message object for status updates.
+        file_path (Path | str): Path to the file to upload.
+        upload_dest (Literal["BUZZHEAVIER", "GOFILE"]): Target upload host.
+        headers (Dict[str, Any] | None): Optional HTTP headers.
+        chunk_size (int): Size of chunks in bytes (defaults to 64 KB).
     Returns:
-        None
+        UploadResult: The result of the upload.
     """
+    
+    path = Path(file_path)
 
-    file_path = Path(file_path)
-    total_size = file_path.stat().st_size
+    # 1. Validate destination
+    if upload_dest not in ("BUZZHEAVIER", "GOFILE"):
+        logger.error("Invalid upload destination specified: '%s'", upload_dest)
+        return UploadResult(success=False, file_url=None)
 
-    progress = UploadProgress(file_path, total_size)
+    # 2. Filesystem checks
+    try:
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {path}")
+        if not path.is_file():
+            raise IsADirectoryError(f"Target path is not a file: {path}")
+        total_size = path.stat().st_size
+    except (FileNotFoundError, IsADirectoryError, PermissionError) as e:
+        logger.error("Filesystem error reading '%s': %s", path, e)
+        return UploadResult(success=False, file_url=None)
+    except OSError as e:
+        logger.error("OS error accessing file '%s': %s", path, e)
+        return UploadResult(success=False, file_url=None)
 
-    with open(file_path, "rb") as f:
-        def read_in_chunks(file_object: BinaryIO, chunk_size: int = 1024):
-            """Generator to read a file in chunks."""
-            while True:
-                data = file_object.read(chunk_size)
-                if not data:
-                    break
-                yield data
+    # 3. Determine endpoint & HTTP method
+    encoded_filename = quote(path.name)
+    if upload_dest == "BUZZHEAVIER":
+        upload_url = f"{BUZZHEAVIER_URL.rstrip('/')}/{encoded_filename}"
+        http_method = "PUT"
+    else:  # GOFILE
+        upload_url = GOFILE_URL
+        http_method = "POST"
+    progress = UploadProgress(path, total_size)
 
-        # Determine the actual upload URL based on the provided literal
-        if upload_dest == "BUZZHEAVIER":
-            upload_url = BUZZHEAVIER_URL
-        elif upload_dest == "GOFILE":
-            upload_url = GOFILE_URL
-        else:
-            raise ValueError("Invalid upload URL specified.")
-        
-        # Upload the file in chunks and update the progress bar
-        for chunk in read_in_chunks(f):
-            response = requests.post(upload_url, headers=headers, data=chunk)
-            response.raise_for_status()  # Raise an error for bad responses
+    # Generator that streams chunks to requests while updating progress
+    def stream_file_with_progress(file_obj: BinaryIO) -> Generator[bytes, None, None]:
+        while True:
+            chunk = file_obj.read(chunk_size)
+            if not chunk:
+                break
             progress.update(len(chunk))
+            yield chunk
 
-            # Get the current progress stats and log them
-            progress_stats = progress.get_stats()
+    # 4. Perform the upload with try-except-finally
+    try:
+        with open(path, "rb") as f:
+            stream_data = stream_file_with_progress(f)
+            if http_method == "PUT":
+                response = requests.put(
+                    upload_url,
+                    headers=headers,
+                    data=stream_data,
+                    timeout=(15, 300),  # (15s connect timeout, 300s read timeout)
+                )
+            else:
+                response = requests.post(
+                    upload_url,
+                    headers=headers,
+                    data=stream_data,
+                    timeout=(15, 300),
+                )
+            # Raise HTTPError for 4xx or 5xx status codes
+            response.raise_for_status()
+        
+        # For GOFILE
+        if upload_dest == "GOFILE":
+            # Parse the JSON response and convert to typed structure
+            data: GofileUploadResultDict = response.json()
+            # Convert to typed response for better error handling
+            typed_response: GofileUploadResult = GofileUploadResult.from_dict(data)
 
-    progress.close()
+            # Check for success and presence of data
+            if not typed_response.success or not typed_response.data:
+                logger.error("GOFILE upload failed: %s", typed_response.status if typed_response.status else "Unknown")
+                return UploadResult(success=False, file_url=None)
+
+            # Extract the download page URL from the typed response & log success
+            file_url = typed_response.data.download_page
+            logger.info("Successfully uploaded '%s' to GOFILE: %s", path.name, file_url)
+            return UploadResult(success=True, file_url=file_url)
+        # For BUZZHEAVIER
+        else:
+            logger.info("Successfully uploaded '%s' to BUZZHEAVIER: %s", path.name, upload_url)
+            return UploadResult(success=True, file_url=upload_url)
+
+    except (InvalidURL, MissingSchema) as e:
+        logger.error("Malformed upload URL '%s': %s", upload_url, e)
+        return UploadResult(success=False, file_url=None)
+    except Timeout as e:
+        logger.error("Upload timed out for '%s' to %s: %s", path.name, upload_dest, e)
+        return UploadResult(success=False, file_url=None)
+    except ReqConnectionError as e:
+        logger.error("Network connection failed while uploading '%s': %s", path.name, e)
+        return UploadResult(success=False, file_url=None)
+    except HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else "Unknown"
+        resp_text = e.response.text[:200] if e.response is not None else ""
+        logger.error(
+            "HTTP %s error uploading '%s' to %s: %s",
+            status_code,
+            path.name,
+            upload_dest,
+            resp_text,
+        )
+        return UploadResult(success=False, file_url=None)
+    except RequestException as e:
+        logger.error("Unexpected requests error uploading '%s': %s", path.name, e)
+        return UploadResult(success=False, file_url=None)
+    except Exception as e:
+        logger.exception("Unexpected error occurred while uploading '%s': %s", path.name, e)
+        return UploadResult(success=False, file_url=None)
+    finally:
+        # Guarantees progress bar cleanly closes even if exceptions occur mid-upload
+        progress.close()
