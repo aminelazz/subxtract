@@ -202,7 +202,7 @@ async def download_file(
         file_utils.clear_temp()
         return False
 
-async def extract_from_download(
+async def extract_and_upload(
         gid: str,
         dl_name: str,
         ctx: SlashContext,
@@ -227,7 +227,7 @@ async def extract_from_download(
     """
 
     # Configure logging
-    logger = get_logger("core.extract_from_download")
+    logger = get_logger("core.extract_and_upload")
 
     logger.info("Starting extraction of Matroska files from download with GID: %s", gid)
     files = aria2_service.get_files(gid)
@@ -387,28 +387,15 @@ async def extract_from_download(
         f"`{dl_name} ({len(files)} file(s) processed)`\n"
     )
 
-    # Upload to BUZZHEAVIER or GOFILE based on user preference
-    try:
-        success = upload.upload_file(
-            message=message,
-            file_path=zip_file_path,
-            upload_dest="BUZZHEAVIER",  # Change to "GOFILE" if you want to use GOFILE instead
-            headers=None  # Add any required headers here
-        )
-        if not success:
-            logger.error("Upload failed for: %s", dl_name)
-            await ctx.send(f"Error: Upload failed for `{dl_name}`.")
-            aria2_service.remove_all_downloads(force=True)
-            file_utils.clear_current_dl()
-            file_utils.clear_temp()
-            return None
-    except Exception as e:
-        logger.error("An error occurred during upload for %s: %s", dl_name, e)
-        await ctx.send(f"An error occurred during upload for `{dl_name}`: {e}")
-        aria2_service.remove_all_downloads(force=True)
-        file_utils.clear_current_dl()
-        file_utils.clear_temp()
-        return None
+    # Upload to BUZZHEAVIER
+    success = await upload.upload_file(
+        message=message,
+        file_path=zip_file_path,
+        upload_dest="BUZZHEAVIER",  # Change to "GOFILE" if you want to use GOFILE instead
+        headers=None  # Add any required headers here
+    )
+    if not success:
+        logger.error("Upload failed for: %s", dl_name)
 
     # Upload the zip file to Discord
     await upload_and_send_to_discord(
@@ -629,7 +616,7 @@ async def download_and_extract(
         
         # Extract file name and cut it to 100 characters to avoid issues with long names
         dl_name = dl_status.name[:100] if dl_status else "Unknown"
-        await extract_from_download(
+        await extract_and_upload(
             gid=gid,
             dl_name=dl_name,
             ctx=ctx,

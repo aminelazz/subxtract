@@ -11,9 +11,11 @@ from config import ARIA2_RPC_HOST, ARIA2_RPC_PORT, ARIA2_RPC_SECRET, DOWNLOAD_DI
 from utils.logger import get_logger
 from ._types import DownloadStatus, Files
 
-client = aria2p.Client(host=ARIA2_RPC_HOST,
-                  port=int(ARIA2_RPC_PORT),
-                  secret=ARIA2_RPC_SECRET)
+client = aria2p.Client(
+    host=ARIA2_RPC_HOST,
+    port=int(ARIA2_RPC_PORT),
+    secret=ARIA2_RPC_SECRET
+)
 api = aria2p.API(client)
 
 def check_connection() -> bool:

@@ -103,6 +103,7 @@ class UploadResult(NamedTuple):
     file_url: Optional[str]
     """The URL of the uploaded file, if available."""
 
+#region ---- Gofile Upload Types ----
 class GofileUploadDataDict(TypedDict, total=False):
     """Type definition for Gofile upload data in dictionary form."""
 
@@ -248,3 +249,156 @@ class GofileUploadResult(NamedTuple):
             "status": self.status,
             "data": self.data.to_dict() if self.data else None,
         }
+#endregion ---- Gofile Upload Types ----
+
+#region ---- Buzzheavier Upload Types ----
+class BuzzheavierUploadDataDict(TypedDict, total=False):
+    """Type definition for Buzzheavier upload data in dictionary form."""
+
+    id: str
+    """Unique identifier for the file on Buzzheavier."""
+    name: str
+    """Name of the uploaded file."""
+    isDirectory: bool
+    """Whether the item is a directory."""
+    locationId: str
+    """Location identifier for the file."""
+    size: int
+    """Size of the file in bytes."""
+    expiry: str
+    """ISO 8601 timestamp string indicating file expiration time."""
+    views: int
+    """Number of times the file has been viewed."""
+    downloads: int
+    """Number of times the file has been downloaded."""
+    sha256: str
+    """SHA-256 hash of the uploaded file."""
+    md5: str
+    """MD5 checksum of the uploaded file."""
+    note: str
+    """Optional note attached to the file."""
+    createdAt: str
+    """ISO 8601 timestamp string indicating creation time."""
+
+class BuzzheavierUploadResultDict(TypedDict, total=False):
+    """Type definition for Buzzheavier upload result in dictionary form."""
+
+    code: int
+    """HTTP status code returned by the API (e.g., 201)."""
+    error: Optional[str]
+    """Error message returned by the API, if any."""
+    data: Optional[BuzzheavierUploadDataDict]
+    """Data object containing upload details."""
+
+class BuzzheavierUploadData(NamedTuple):
+    """Type definition for Buzzheavier upload file metadata."""
+
+    id: str = ""
+    """Unique identifier for the file on Buzzheavier."""
+    name: str = ""
+    """Name of the uploaded file."""
+    is_directory: bool = False
+    """Whether the item is a directory."""
+    location_id: str = ""
+    """Location identifier for the file."""
+    size: int = 0
+    """Size of the file in bytes."""
+    expiry: str = ""
+    """ISO 8601 timestamp string indicating file expiration time."""
+    views: int = 0
+    """Number of times the file has been viewed."""
+    downloads: int = 0
+    """Number of times the file has been downloaded."""
+    sha256: str = ""
+    """SHA-256 hash of the uploaded file."""
+    md5: str = ""
+    """MD5 checksum of the uploaded file."""
+    note: str = ""
+    """Optional note attached to the file."""
+    created_at: str = ""
+    """ISO 8601 timestamp string indicating creation time."""
+
+    @property
+    def download_url(self) -> str:
+        """The public download URL for the file."""
+        return f"https://buzzheavier.com/{self.id}" if self.id else ""
+
+    @classmethod
+    def from_dict(cls, data: Optional[BuzzheavierUploadDataDict]) -> "BuzzheavierUploadData":
+        """Builds BuzzheavierUploadData from dictionary (supports camelCase and snake_case)."""
+        if not data:
+            return cls()
+        return cls(
+            id=data.get("id", ""),
+            name=data.get("name", ""),
+            is_directory=data.get("isDirectory", data.get("is_directory", False)),
+            location_id=data.get("locationId", data.get("location_id", "")),
+            size=data.get("size", 0),
+            expiry=data.get("expiry", ""),
+            views=data.get("views", 0),
+            downloads=data.get("downloads", 0),
+            sha256=data.get("sha256", ""),
+            md5=data.get("md5", ""),
+            note=data.get("note", ""),
+            created_at=data.get("createdAt", data.get("created_at", "")),
+        )
+
+    def to_dict(self) -> BuzzheavierUploadDataDict:
+        """Converts BuzzheavierUploadData to a dictionary."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "isDirectory": self.is_directory,
+            "locationId": self.location_id,
+            "size": self.size,
+            "expiry": self.expiry,
+            "views": self.views,
+            "downloads": self.downloads,
+            "sha256": self.sha256,
+            "md5": self.md5,
+            "note": self.note,
+            "createdAt": self.created_at,
+        }
+
+class BuzzheavierUploadResult(NamedTuple):
+    """Type definition for Buzzheavier upload result data structure."""
+
+    code: int = 0
+    """HTTP status code returned by the API (e.g., 201)."""
+    error: Optional[str] = None
+    """Error message returned by the API, if any."""
+    data: Optional[BuzzheavierUploadData] = None
+    """Data object containing upload details."""
+
+    @property
+    def success(self) -> bool:
+        """Whether the upload was successful (HTTP 2xx code)."""
+        return 200 <= self.code < 300
+
+    @property
+    def download_url(self) -> str:
+        """Convenience property for the download URL."""
+        return self.data.download_url if self.data else ""
+
+    @property
+    def file_id(self) -> str:
+        """Convenience property for the file ID."""
+        return self.data.id if self.data else ""
+
+    @classmethod
+    def from_dict(cls, data: BuzzheavierUploadResultDict) -> "BuzzheavierUploadResult":
+        """Builds BuzzheavierUploadResult from raw API response dictionary."""
+        code = data.get("code", 0)
+        error = data.get("error")
+        raw_data = data.get("data")
+        data_obj = BuzzheavierUploadData.from_dict(raw_data) if isinstance(raw_data, dict) else None
+        return cls(code=code, error=error, data=data_obj)
+
+    def to_dict(self) -> BuzzheavierUploadResultDict:
+        """Converts BuzzheavierUploadResult to a dictionary."""
+        return {
+            "code": self.code,
+            "error": self.error,
+            "data": self.data.to_dict() if self.data else None,
+        }
+#endregion ---- Buzzheavier Upload Types ----
