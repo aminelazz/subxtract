@@ -1,6 +1,6 @@
 """Types for the upload utilities."""
 
-from typing import Any, Dict, NamedTuple, Optional, TypedDict
+from typing import NamedTuple, Optional, TypedDict
 
 class UploadProgressTypeDict(TypedDict):
     """Type definition for upload progress data structure in dictionary form."""
@@ -100,7 +100,9 @@ class UploadResult(NamedTuple):
 
     success: bool
     """Whether the upload was successful or not."""
-    file_url: Optional[str]
+    error_message: Optional[str] = None
+    """Error message if the upload failed, otherwise None."""
+    file_url: Optional[str] = None
     """The URL of the uploaded file, if available."""
 
 #region ---- Gofile Upload Types ----

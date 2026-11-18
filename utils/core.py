@@ -388,14 +388,32 @@ async def extract_and_upload(
     )
 
     # Upload to BUZZHEAVIER
-    success = await upload.upload_file(
+    buzz_result = await upload.upload_file(
         message=message,
         file_path=zip_file_path,
         upload_dest="BUZZHEAVIER",  # Change to "GOFILE" if you want to use GOFILE instead
         headers=None  # Add any required headers here
     )
-    if not success:
-        logger.error("Upload failed for: %s", dl_name)
+
+    # Check the result of the BUZZHEAVIER upload and update the caption accordingly
+    if buzz_result.success:
+        caption += f"BUZZHEAVIER: {buzz_result.file_url}\n"
+    else:
+        caption += f"BUZZHEAVIER: {buzz_result.error_message}\n"
+
+    # Upload to GOFILE
+    gofile_result = await upload.upload_file(
+        message=message,
+        file_path=zip_file_path,
+        upload_dest="GOFILE",
+        headers=None  # Add any required headers here
+    )
+
+    # Check the result of the GOFILE upload and update the caption accordingly
+    if gofile_result.success:
+        caption += f"GOFILE: {gofile_result.file_url}\n"
+    else:
+        caption += f"GOFILE: {gofile_result.error_message}\n"
 
     # Upload the zip file to Discord
     await upload_and_send_to_discord(
