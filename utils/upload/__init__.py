@@ -1,6 +1,7 @@
 """Robust upload function with granular exception handling."""
 
 from datetime import datetime
+import io
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -40,24 +41,38 @@ class UploadProgress:
     def __init__(
             self: "UploadProgress",
             file_path: Path | str,
-            total_size: int
+            total_size: int,
+            log_interval: float = 0.5,  # Log at most once every 0.5 seconds
         ) -> None:
 
         self.file_path = file_path
         self.file_name = Path(file_path).name
         self.total_size = total_size
-        timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+        self.log_interval = log_interval
+        self._last_log_time = 0.0
+
+        # Redirect tqdm's raw '\r' output to an in-memory buffer so it never pollutes stderr/bot.log
+        self._null_buffer = io.StringIO()
         self.progress_bar = tqdm(
             total=total_size,
+            file=self._null_buffer,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-            desc=f"[{timestamp}] [INFO] [{__name__}] Uploading {self.file_name}",
+            ascii=False,
+            ncols=90,
+            desc=f"Uploading {self.file_name}",
         )
 
     def update(self, bytes_uploaded: int) -> None:
         """Update the progress bar with the number of bytes uploaded."""
         self.progress_bar.update(bytes_uploaded)
+        now = time.monotonic()
+        # Log progress at most once every `log_interval` seconds or when upload is complete
+        if (now - self._last_log_time >= self.log_interval) or self.is_complete:
+            self._last_log_time = now
+            # Use tqdm's formatted bar string (logged with proper prefix & '\n')
+            logger.info("%s", self.progress_bar)
 
     @property
     def uploaded_size(self) -> int:
@@ -119,6 +134,7 @@ class UploadProgress:
     def close(self) -> None:
         """Close the progress bar."""
         self.progress_bar.close()
+        self._null_buffer.close()
 
 class UploadError(Exception):
     """Custom base exception for upload failures."""
