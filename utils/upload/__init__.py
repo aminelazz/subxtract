@@ -1,5 +1,6 @@
 """Robust upload function with granular exception handling."""
 
+from datetime import datetime
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -45,12 +46,13 @@ class UploadProgress:
         self.file_path = file_path
         self.file_name = Path(file_path).name
         self.total_size = total_size
+        timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
         self.progress_bar = tqdm(
             total=total_size,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-            desc=f"Uploading {self.file_name}:",
+            desc=f"[{timestamp}] [INFO] [{__name__}] Uploading {self.file_name}",
         )
 
     def update(self, bytes_uploaded: int) -> None:
@@ -214,6 +216,9 @@ async def upload_file(
                 )
             # Raise HTTPError for 4xx or 5xx status codes
             response.raise_for_status()
+
+        # Close the progress bar after upload completes
+        progress.close()
 
         #region ---- For GOFILE ----
         if upload_dest == "GOFILE":
