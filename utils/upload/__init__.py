@@ -1,6 +1,5 @@
 """Robust upload function with granular exception handling."""
 
-import os
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -16,6 +15,7 @@ from requests.exceptions import (
     RequestException,
     Timeout,
 )
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tqdm.auto import tqdm
 
 from utils.logger import get_logger
@@ -49,7 +49,7 @@ class UploadProgress:
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-            desc=f"Uploading {self.file_name}:"
+            desc=f"Uploading {self.file_name}:",
         )
 
     def update(self, bytes_uploaded: int) -> None:
@@ -145,6 +145,7 @@ async def upload_file(
     await message.edit(content=f"⏳ Uploading '{Path(file_path).name}' to {upload_dest}...")
 
     path = Path(file_path)
+    req_headers = dict(headers) if headers else {}
 
     # 1. Validate destination
     if upload_dest not in ("BUZZHEAVIER", "GOFILE"):
@@ -201,15 +202,21 @@ async def upload_file(
             if http_method == "PUT":
                 response = requests.put(
                     upload_url,
-                    headers=headers,
+                    headers=req_headers,
                     data=stream_data,
                     timeout=(15, 300),  # (15s connect timeout, 300s read timeout)
                 )
             else:
+                # Use MultipartEncoder for streaming multipart/form-data uploads
+                m = MultipartEncoder(
+                    fields={"file": (path.name, f, "application/octet-stream")},
+                )
+                req_headers["Content-Type"] = m.content_type
+
                 response = requests.post(
                     upload_url,
-                    headers=headers,
-                    data=stream_data,
+                    headers=req_headers,
+                    data=m,
                     timeout=(15, 300),
                 )
             # Raise HTTPError for 4xx or 5xx status codes
