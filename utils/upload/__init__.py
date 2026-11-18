@@ -293,4 +293,4 @@ async def upload_file(
     finally:
         # Guarantees progress bar cleanly closes even if exceptions occur mid-upload
         progress.close()
-        time.sleep(2)  # Allow time for progress bar to finalize before next output
+        time.sleep(0.5)  # Allow time for progress bar to finalize before next output
