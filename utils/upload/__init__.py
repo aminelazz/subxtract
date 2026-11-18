@@ -60,7 +60,6 @@ class UploadProgress:
             unit_scale=True,
             unit_divisor=1024,
             ascii=False,
-            ncols=90,
             desc=f"Uploading {self.file_name}",
         )
 
