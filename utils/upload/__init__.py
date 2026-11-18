@@ -143,14 +143,14 @@ async def upload_file(
     """
 
     logger.info("Starting upload of '%s' to %s", file_path, upload_dest)
-    await message.edit(content=f"⏳ Uploading '{Path(file_path).name}' to {upload_dest}...")
+    await message.edit(content=f"⏳ Uploading `{Path(file_path).name}` to {upload_dest}...")
 
     path = Path(file_path)
     req_headers = dict(headers) if headers else {}
 
     # 1. Validate destination
     if upload_dest not in ("BUZZHEAVIER", "GOFILE"):
-        err_msg = f"❌ Invalid upload destination specified: '{upload_dest}'"
+        err_msg = f"❌ Invalid upload destination specified: **{upload_dest}**"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(
@@ -167,12 +167,12 @@ async def upload_file(
             raise IsADirectoryError(f"Target path is not a file: {path}")
         total_size = path.stat().st_size
     except (FileNotFoundError, IsADirectoryError, PermissionError) as e:
-        err_msg = f"❌ Filesystem error accessing '{path}': {e}"
+        err_msg = f"❌ Filesystem error accessing `{path}`: {e}"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
     except OSError as e:
-        err_msg = f"❌ OS error accessing file '{path}': {e}"
+        err_msg = f"❌ OS error accessing file `{path}`: {e}"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
@@ -231,7 +231,7 @@ async def upload_file(
 
             # Extract the download page URL from the typed response & log success
             file_url = typed_response_gofile.data.download_page
-            success_msg = f"✅ Successfully uploaded '{Path(file_path).name}' to GOFILE: {file_url}"
+            success_msg = f"✅ Successfully uploaded `{Path(file_path).name}` to GOFILE:\n{file_url}"
             logger.info(success_msg)
             await message.edit(content=success_msg)
             return UploadResult(success=True, file_url=file_url)
@@ -252,41 +252,41 @@ async def upload_file(
 
         # Extract the download page URL from the typed response & log success
         file_url = typed_response_buzzheavier.download_url
-        success_msg = f"✅ Successfully uploaded '{Path(file_path).name}' to BUZZHEAVIER: {file_url}"
+        success_msg = f"✅ Successfully uploaded `{Path(file_path).name}` to BUZZHEAVIER:\n{file_url}"
         logger.info(success_msg)
         await message.edit(content=success_msg)
         return UploadResult(success=True, file_url=file_url)
         #endregion ---- For BUZZHEAVIER ----
 
     except (InvalidURL, MissingSchema) as e:
-        err_msg = f"❌ Malformed upload URL '{upload_url}': {e}"
+        err_msg = f"❌ Malformed upload URL `{upload_url}`: {e}"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
     except Timeout as e:
-        err_msg = f"❌ Upload timed out for '{path.name}' to {upload_dest}: {e}"
+        err_msg = f"❌ Upload timed out for `{path.name}` to **{upload_dest}**: {e}"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
     except ReqConnectionError as e:
-        err_msg = f"❌ Network connection failed while uploading '{path.name}': {e}"
+        err_msg = f"❌ Network connection failed while uploading `{path.name}`: {e}"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
     except HTTPError as e:
         status_code = e.response.status_code if e.response is not None else "Unknown"
         resp_text = e.response.text[:200] if e.response is not None else ""
-        err_msg = f"❌ HTTP {status_code} error uploading '{path.name}' to {upload_dest}: {resp_text}"
+        err_msg = f"❌ HTTP {status_code} error uploading `{path.name}` to **{upload_dest}**: {resp_text}"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
     except RequestException as e:
-        err_msg = f"❌ Unexpected requests error uploading '{path.name}': {e}"
+        err_msg = f"❌ Unexpected requests error uploading `{path.name}`: {e}"
         logger.error(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
     except Exception as e:
-        err_msg = f"❌ Unexpected error occurred while uploading '{path.name}': {e}"
+        err_msg = f"❌ Unexpected error occurred while uploading `{path.name}`: {e}"
         logger.exception(err_msg)
         await message.edit(content=f"{err_msg}\nSkipping...")
         return UploadResult(success=False, error_message=err_msg, file_url=None)
