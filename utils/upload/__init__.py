@@ -3,7 +3,7 @@
 import time
 from pathlib import Path
 from urllib.parse import quote
-from typing import Any, BinaryIO, Dict, Generator, Literal
+from typing import Any, BinaryIO, Dict, Literal, cast
 
 from interactions import Message
 import requests
@@ -17,6 +17,7 @@ from requests.exceptions import (
 )
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tqdm.auto import tqdm
+from tqdm.utils import CallbackIOWrapper
 
 from utils.logger import get_logger
 from config import BUZZHEAVIER_URL, GOFILE_URL
@@ -186,30 +187,22 @@ async def upload_file(
         http_method = "POST"
     progress = UploadProgress(path, total_size)
 
-    # Generator that streams chunks to requests while updating progress
-    def stream_file_with_progress(file_obj: BinaryIO) -> Generator[bytes, None, None]:
-        while True:
-            chunk = file_obj.read(chunk_size)
-            if not chunk:
-                break
-            progress.update(len(chunk))
-            yield chunk
-
     # 4. Perform the upload with try-except-finally
     try:
         with open(path, "rb") as f:
-            stream_data = stream_file_with_progress(f)
+            # Wrap the file object with a callback to update progress
+            wrapped_file = cast(BinaryIO, CallbackIOWrapper(progress.update, f, "read"))
             if http_method == "PUT":
                 response = requests.put(
                     upload_url,
                     headers=req_headers,
-                    data=stream_data,
+                    data=wrapped_file,
                     timeout=(15, 300),  # (15s connect timeout, 300s read timeout)
                 )
             else:
                 # Use MultipartEncoder for streaming multipart/form-data uploads
                 m = MultipartEncoder(
-                    fields={"file": (path.name, f, "application/octet-stream")},
+                    fields={"file": (path.name, wrapped_file, "application/octet-stream")},
                 )
                 req_headers["Content-Type"] = m.content_type
 

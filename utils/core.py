@@ -384,7 +384,7 @@ async def extract_and_upload(
 
     # Build the summary message
     caption = (
-        f"`{dl_name} ({len(files)} file(s) processed)`\n"
+        f"`{dl_name} ({len(files)} file(s) processed)`\n\n"
     )
 
     # Upload to BUZZHEAVIER
