@@ -20,3 +20,5 @@ QUEUE_FILE = os.getenv("QUEUE_FILE", "./data/queue.json")
 TUNNEL_URL_FILE = os.getenv(
     "TUNNEL_URL_FILE", "./data/cloudflare_tunnel_url.txt"
 )
+BUZZHEAVIER_URL = os.getenv("BUZZHEAVIER_URL", "https://w.buzzheavier.com")
+GOFILE_URL = os.getenv("GOFILE_URL", "https://upload.gofile.io/uploadfile")

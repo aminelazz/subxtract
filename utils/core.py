@@ -10,7 +10,7 @@ from interactions import File
 from interactions import Message, SlashContext
 
 from config import DISCORD_TOKEN, APP_ID, EXTRACT_DIR, TUNNEL_URL_FILE
-from utils import aria2_service, file_utils, mkv_service
+from utils import aria2_service, file_utils, mkv_service, upload
 from utils.controller import extraction_cancel_event
 from utils.logger import get_logger
 
@@ -202,7 +202,7 @@ async def download_file(
         file_utils.clear_temp()
         return False
 
-async def extract_from_download(
+async def extract_and_upload(
         gid: str,
         dl_name: str,
         ctx: SlashContext,
@@ -227,7 +227,7 @@ async def extract_from_download(
     """
 
     # Configure logging
-    logger = get_logger("core.extract_from_download")
+    logger = get_logger("core.extract_and_upload")
 
     logger.info("Starting extraction of Matroska files from download with GID: %s", gid)
     files = aria2_service.get_files(gid)
@@ -384,8 +384,36 @@ async def extract_from_download(
 
     # Build the summary message
     caption = (
-        f"`{dl_name} ({len(files)} file(s) processed)`\n"
+        f"`{dl_name} ({len(files)} file(s) processed)`\n\n"
     )
+
+    # Upload to BUZZHEAVIER
+    buzz_result = await upload.upload_file(
+        message=message,
+        file_path=zip_file_path,
+        upload_dest="BUZZHEAVIER",  # Change to "GOFILE" if you want to use GOFILE instead
+        headers=None  # Add any required headers here
+    )
+
+    # Check the result of the BUZZHEAVIER upload and update the caption accordingly
+    if buzz_result.success:
+        caption += f"**BUZZHEAVIER:** {buzz_result.file_url}\n\n"
+    else:
+        caption += f"**BUZZHEAVIER:** `{buzz_result.error_message}`\n\n"
+
+    # Upload to GOFILE
+    gofile_result = await upload.upload_file(
+        message=message,
+        file_path=zip_file_path,
+        upload_dest="GOFILE",
+        headers=None  # Add any required headers here
+    )
+
+    # Check the result of the GOFILE upload and update the caption accordingly
+    if gofile_result.success:
+        caption += f"**GOFILE:** {gofile_result.file_url}\n\n"
+    else:
+        caption += f"**GOFILE:** `{gofile_result.error_message}`\n\n"
 
     # Upload the zip file to Discord
     await upload_and_send_to_discord(
@@ -606,7 +634,7 @@ async def download_and_extract(
         
         # Extract file name and cut it to 100 characters to avoid issues with long names
         dl_name = dl_status.name[:100] if dl_status else "Unknown"
-        await extract_from_download(
+        await extract_and_upload(
             gid=gid,
             dl_name=dl_name,
             ctx=ctx,
