@@ -3,14 +3,14 @@
   "id": "https://mkvtoolnix.download/doc/mkvmerge-identification-output-schema-v20.json",
   "title": "mkvmerge identification output",
   "description": "The JSON output produced by mkvmerge's file identification mode",
-  "additionalProperties": false,
+  "additionalProperties": true,
   "type": "object",
   "properties": {
     "attachments": {
       "description": "an array describing the attachments found if any",
       "type": "array",
       "items": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "type": "object",
         "properties": {
           "content_type": {
@@ -32,21 +32,19 @@
             "minimum": 0
           },
           "properties": {
-            "additionalProperties": false,
+            "additionalProperties": true,
             "type": "object",
             "properties": {
               "uid": {
                 "type": "integer",
                 "minimum": 0
               }
-            },
-            "additionalProperties": false
+            }
           },
           "type": {
             "type": "string"
           }
         },
-        "additionalProperties": false,
         "required": [
           "file_name",
           "id",
@@ -58,26 +56,25 @@
     "chapters": {
       "type": "array",
       "items": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "type": "object",
         "properties": {
           "num_entries": {
             "type": "integer"
           }
         },
-        "additionalProperties": false,
         "required": [
           "num_entries"
         ]
       }
     },
     "container": {
-      "additionalProperties": false,
+      "additionalProperties": true,
       "description": "information about the identified container",
       "type": "object",
       "properties": {
         "properties": {
-          "additionalProperties": false,
+          "additionalProperties": true,
           "description": "additional properties for the container varying by container format",
           "type": "object",
           "properties": {
@@ -158,7 +155,7 @@
               "description": "A container describing multiple programs multiplexed into the source file, e.g. multiple programs in one DVB transport stream",
               "type": "array",
               "items": {
-                "additionalProperties": false,
+                "additionalProperties": true,
                 "description": "Properties describing a single program",
                 "type": "object",
                 "properties": {
@@ -196,8 +193,7 @@
               "description": "A Unicode string containing the name and possibly version of the high-level application that created the file",
               "type": "string"
             }
-          },
-          "additionalProperties": false
+          }
         },
         "recognized": {
           "description": "States whether or not mkvmerge knows about the format",
@@ -213,7 +209,6 @@
           "minLength": 1
         }
       },
-      "additionalProperties": false,
       "required": [
         "recognized",
         "supported"
@@ -233,14 +228,13 @@
     "global_tags": {
       "type": "array",
       "items": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "type": "object",
         "properties": {
           "num_entries": {
             "type": "integer"
           }
         },
-        "additionalProperties": false,
         "required": [
           "num_entries"
         ]
@@ -249,13 +243,13 @@
     "identification_format_version": {
       "description": "The output format's version",
       "type": "integer",
-      "minimum": 20,
-      "maximum": 20
+      "minimum": 10,
+      "maximum": 120
     },
     "track_tags": {
       "type": "array",
       "items": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "type": "object",
         "properties": {
           "num_entries": {
@@ -265,7 +259,6 @@
             "type": "integer"
           }
         },
-        "additionalProperties": false,
         "required": [
           "num_entries",
           "track_id"
@@ -275,7 +268,7 @@
     "tracks": {
       "type": "array",
       "items": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "type": "object",
         "properties": {
           "codec": {
@@ -526,11 +519,9 @@
                 "type": "string",
                 "pattern": "^-?[0-9]+(\\.[0-9]+)?,-?[0-9]+(\\.[0-9]+)?$"
               }
-            },
-            "additionalProperties": false
+            }
           }
         },
-        "additionalProperties": false,
         "required": [
           "codec",
           "id",
