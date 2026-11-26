@@ -1,6 +1,7 @@
 """Robust upload function with granular exception handling."""
 
 from datetime import datetime
+import asyncio
 import io
 import time
 from pathlib import Path
@@ -139,6 +140,43 @@ class UploadError(Exception):
     """Custom base exception for upload failures."""
     pass
 
+
+def _perform_http_upload(
+    path: Path,
+    http_method: str,
+    upload_url: str,
+    req_headers: Dict[str, Any],
+    progress: UploadProgress,
+) -> requests.Response:
+    """Executes the synchronous streaming HTTP upload in a worker thread."""
+    with open(path, "rb") as f:
+        # Wrap the file object with a callback to update progress
+        wrapped_file = cast(BinaryIO, CallbackIOWrapper(progress.update, f, "read"))
+        if http_method == "PUT":
+            response = requests.put(
+                upload_url,
+                headers=req_headers,
+                data=wrapped_file,
+                timeout=(15, 300),  # (15s connect timeout, 300s read timeout)
+            )
+        else:
+            # Use MultipartEncoder for streaming multipart/form-data uploads
+            m = MultipartEncoder(
+                fields={"file": (path.name, wrapped_file, "application/octet-stream")},
+            )
+            req_headers["Content-Type"] = m.content_type
+
+            response = requests.post(
+                upload_url,
+                headers=req_headers,
+                data=m,
+                timeout=(15, 300),
+            )
+        # Raise HTTPError for 4xx or 5xx status codes
+        response.raise_for_status()
+    return response
+
+
 async def upload_file(
         message: Message,
         file_path: Path | str,
@@ -206,31 +244,14 @@ async def upload_file(
 
     # 4. Perform the upload with try-except-finally
     try:
-        with open(path, "rb") as f:
-            # Wrap the file object with a callback to update progress
-            wrapped_file = cast(BinaryIO, CallbackIOWrapper(progress.update, f, "read"))
-            if http_method == "PUT":
-                response = requests.put(
-                    upload_url,
-                    headers=req_headers,
-                    data=wrapped_file,
-                    timeout=(15, 300),  # (15s connect timeout, 300s read timeout)
-                )
-            else:
-                # Use MultipartEncoder for streaming multipart/form-data uploads
-                m = MultipartEncoder(
-                    fields={"file": (path.name, wrapped_file, "application/octet-stream")},
-                )
-                req_headers["Content-Type"] = m.content_type
-
-                response = requests.post(
-                    upload_url,
-                    headers=req_headers,
-                    data=m,
-                    timeout=(15, 300),
-                )
-            # Raise HTTPError for 4xx or 5xx status codes
-            response.raise_for_status()
+        response = await asyncio.to_thread(
+            _perform_http_upload,
+            path,
+            http_method,
+            upload_url,
+            req_headers,
+            progress,
+        )
 
         # Close the progress bar after upload completes
         progress.close()
@@ -313,4 +334,4 @@ async def upload_file(
     finally:
         # Guarantees progress bar cleanly closes even if exceptions occur mid-upload
         progress.close()
-        time.sleep(0.5)  # Allow time for progress bar to finalize before next output
+        await asyncio.sleep(0.5)  # Allow time for progress bar to finalize before next output

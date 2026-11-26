@@ -119,6 +119,7 @@ def pause_download(gid: str) -> bool:
             download = api.get_download(gid)
             if download.status == "paused":
                 break
+            time.sleep(0.5)
         logger.info("Download with GID %s has been paused.", gid)
         return True
     except Exception as e:
@@ -137,6 +138,7 @@ def resume_download(gid: str) -> bool:
             download = api.get_download(gid)
             if download.status in {"active", "waiting", "complete"}:
                 break
+            time.sleep(0.5)
         logger.info("Download with GID %s has resumed.", gid)
         return True
     except Exception as e:
@@ -154,6 +156,7 @@ def wait_for_completion(gid: str) -> Path:
     """Waits for a download to complete and returns the download directory."""
     download = api.get_download(gid)
     while not download.is_complete:
+        time.sleep(0.5)
         download = api.get_download(gid)
     return download.dir
 
@@ -168,10 +171,11 @@ def remove_download(gid: str, force: bool = False) -> bool:
 def remove_all_downloads(force: bool = False) -> bool:
     """Removes all downloads."""
     downloads = api.get_downloads()
+    all_removed = True
     for download in downloads:
-        if force:
-            return download.remove(force=True)
-        else:
-            return download.remove()
-    time.sleep(1)  # Give some time for Aria2 to process removals
-    return True
+        removed = download.remove(force=True) if force else download.remove()
+        if not removed:
+            all_removed = False
+    if downloads:
+        time.sleep(1)  # Give some time for Aria2 to process removals
+    return all_removed

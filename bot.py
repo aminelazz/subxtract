@@ -1,13 +1,34 @@
 """Main bot file to run the Discord bot."""
 
 import pkgutil
+from typing import Any, cast
 
+import aiohttp
 from interactions import Activity, ActivityType, Client, Intents, listen
+from interactions.api.gateway.websocket import WebsocketClient
+from interactions.models.discord.channel import TYPE_CHANNEL_MAPPING, GuildChannel
 from config import DISCORD_TOKEN
 from utils.core import get_logger
 
 # Configure logging
 logger = get_logger("bot")
+
+# Register newer Discord channel types (e.g., 20 = server-hub) missing in interactions 5.15.0
+cast(dict[int, Any], TYPE_CHANNEL_MAPPING).setdefault(20, GuildChannel)
+
+# Convert aiohttp ClientConnectionResetError into ServerDisconnectedError so
+# interactions.py reconnects cleanly instead of stopping the shard.
+_orig_ws_send = WebsocketClient.send
+
+
+async def _safe_ws_send(self, *args, **kwargs):
+    try:
+        return await _orig_ws_send(self, *args, **kwargs)
+    except aiohttp.ClientConnectionResetError as exc:
+        raise aiohttp.ServerDisconnectedError("Transport closing") from exc
+
+
+WebsocketClient.send = _safe_ws_send
 
 # Initialize bot with all intents
 bot = Client(token=DISCORD_TOKEN, intents=Intents.ALL)

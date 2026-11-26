@@ -262,7 +262,8 @@ class MKVService:
     @staticmethod
     def extract_subtitles(
         file_path: str,
-        output_dir: Path = Path(EXTRACT_DIR)
+        output_dir: Path = Path(EXTRACT_DIR),
+        info: MKVMergeReturnType | None = None,
     ) -> MKVExtractReturnType | None:
         """
         Extracts subtitles from the MKV file to the specified output directory.
@@ -270,6 +271,7 @@ class MKVService:
         Args:
             file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted subtitles.
+            info (MKVMergeReturnType | None): Pre-fetched mkvmerge info to avoid redundant calls.
 
         Returns:
             dict[str, Path|int] | None: A dictionary containing the paths of the extracted subtitle files and their count,
@@ -277,16 +279,16 @@ class MKVService:
         """
 
         logger = get_logger("mkv_service.extract_subtitles")
-        
+
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(file_path)
+            if info is None:
+                info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
 
-            extracted_files = []
-            idx_subs: int = 0
+            track_items: list[dict] = []
             for s_id in info.get("tracks", []):
                 if s_id.get("type") == "subtitles":
                     try:
@@ -324,37 +326,72 @@ class MKVService:
                             output_dir,
                             f"subtitle_{s_id['id']}.{subtitle_language}.{extension}"
                         )
+                        track_items.append({
+                            "id": s_id["id"],
+                            "language": subtitle_language,
+                            "extension": extension,
+                            "out_path": out_path,
+                            "spec": f"{s_id['id']}:{out_path}",
+                        })
+                    except Exception as item_error:
+                        logger.warning("Error processing subtitle track %s, skipping: %s", s_id.get("id"), item_error)
+                        continue
 
-                        # Command to extract subtitle track
+            if not track_items:
+                return None
+
+            extracted_files: list[str] = []
+            idx_subs: int = 0
+            timeout_sec = MKVService.get_dynamic_timeout(file_path)
+
+            # Extract all subtitle tracks in a single pass
+            batch_cmd = [
+                "mkvextract",
+                "--quiet",
+                file_path,
+                "tracks",
+                *[item["spec"] for item in track_items],
+            ]
+            if MKVService.extract_mkv_tracks(batch_cmd, timeout_sec=timeout_sec):
+                for item in track_items:
+                    if os.path.exists(item["out_path"]):
+                        extracted_files.append(item["out_path"])
+                        if item["extension"] == "idx":
+                            idx_subs += 1
+                            sub_file_path = os.path.join(
+                                output_dir,
+                                f"subtitle_{item['id']}.{item['language']}.sub"
+                            )
+                            if os.path.exists(sub_file_path):
+                                extracted_files.append(sub_file_path)
+            else:
+                # Fallback to per-track extraction if batched extraction fails
+                logger.warning("Batched subtitle extraction failed; falling back to per-track extraction.")
+                for item in track_items:
+                    try:
                         cmd = [
                             "mkvextract",
                             "--quiet",
                             file_path,
                             "tracks",
-                            f"{s_id['id']}:{out_path}"
+                            item["spec"],
                         ]
-                        # Get dynamic timeout based on file size and whether it includes extracting the video track
-                        timeout_sec = MKVService.get_dynamic_timeout(file_path)
-
-                        # Command to extract subtitle track
-                        result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
-                        if not result:
-                            continue  # Skip to the next subtitle track if extraction failed
-                        extracted_files.append(out_path)
-                        # mkvextract automatically creates a .sub file alongside the .idx file
-                        if extension == "idx":
+                        if not MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec):
+                            continue
+                        extracted_files.append(item["out_path"])
+                        if item["extension"] == "idx":
                             idx_subs += 1
                             sub_file_path = os.path.join(
                                 output_dir,
-                                f"subtitle_{s_id['id']}.{subtitle_language}.sub"
+                                f"subtitle_{item['id']}.{item['language']}.sub"
                             )
                             if os.path.exists(sub_file_path):
                                 extracted_files.append(sub_file_path)
                     except subprocess.CalledProcessError as extract_error:
-                        logger.warning("Failed to extract subtitle track %s, skipping: %s", s_id.get("id"), extract_error)
+                        logger.warning("Failed to extract subtitle track %s, skipping: %s", item["id"], extract_error)
                         continue
                     except Exception as item_error:
-                        logger.warning("Error processing subtitle track %s, skipping: %s", s_id.get("id"), item_error)
+                        logger.warning("Error processing subtitle track %s, skipping: %s", item["id"], item_error)
                         continue
 
             if not extracted_files:
@@ -375,13 +412,18 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_attachments(file_path: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
+    def extract_attachments(
+        file_path: str,
+        output_dir: Path = Path(EXTRACT_DIR),
+        info: MKVMergeReturnType | None = None,
+    ) -> MKVExtractReturnType | None:
         """
         Extracts attachments from the MKV file to the specified output directory.
         
         Args:
             file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted attachments.
+            info (MKVMergeReturnType | None): Pre-fetched mkvmerge info to avoid redundant calls.
 
         Returns:
             MKVExtractReturnType | None: An instance of MKVExtractReturnType containing the path of the extracted
@@ -392,31 +434,32 @@ class MKVService:
 
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(file_path)
+            if info is None:
+                info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
 
-            extracted_files = []
+            attachment_items: list[dict] = []
             for a_id in info.get("attachments", []):
                 try:
                     # Safely get content_type
                     content_type = a_id.get("content_type", "").strip()
                     
                     # Guess extension if not provided
-                    if a_id.get("content_type") == "application/font-sfnt":
+                    if content_type == "application/font-sfnt":
                         extension = "ttf"
-                    elif a_id.get("content_type") == "application/x-truetype-font":
+                    elif content_type == "application/x-truetype-font":
                         extension = "ttf"
-                    elif a_id.get("content_type") == "font/ttf":
+                    elif content_type == "font/ttf":
                         extension = "ttf"
-                    elif a_id.get("content_type") == "application/vnd.ms-opentype":
+                    elif content_type == "application/vnd.ms-opentype":
                         extension = "otf"
-                    elif a_id.get("content_type") == "font/otf":
+                    elif content_type == "font/otf":
                         extension = "otf"
-                    elif a_id.get("content_type") == "image/png":
+                    elif content_type == "image/png":
                         extension = "png"
-                    elif a_id.get("content_type") == "image/jpeg":
+                    elif content_type == "image/jpeg":
                         extension = "jpg"
                     else:
                         extension = "bin"
@@ -430,30 +473,54 @@ class MKVService:
                     
                     # Construct output path
                     out_path = os.path.join(output_dir, safe_filename)
-
-                    # Command to extract attachments
-                    cmd = [
-                        "mkvextract",
-                        "--quiet",
-                        file_path,
-                        "attachments",
-                        f"{a_id['id']}:{out_path}"
-                    ]
-                    # Get dynamic timeout based on file size and whether it includes extracting the video track
-                    timeout_sec = MKVService.get_dynamic_timeout(file_path)
-                    
-                    # Command to extract attachments
-                    result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
-                    if not result:
-                        continue  # Skip to the next attachment if extraction failed
-
-                    extracted_files.append(out_path)
-                except subprocess.CalledProcessError as extract_error:
-                    logger.warning("Failed to extract attachment %s, skipping: %s", a_id.get("id"), extract_error)
-                    continue
+                    attachment_items.append({
+                        "id": a_id["id"],
+                        "out_path": out_path,
+                        "spec": f"{a_id['id']}:{out_path}",
+                    })
                 except Exception as item_error:
                     logger.warning("Error processing attachment %s, skipping: %s", a_id.get("id"), item_error)
                     continue
+
+            if not attachment_items:
+                return None
+
+            extracted_files: list[str] = []
+            timeout_sec = MKVService.get_dynamic_timeout(file_path)
+
+            # Extract all attachments in a single pass
+            batch_cmd = [
+                "mkvextract",
+                "--quiet",
+                file_path,
+                "attachments",
+                *[item["spec"] for item in attachment_items],
+            ]
+            if MKVService.extract_mkv_tracks(batch_cmd, timeout_sec=timeout_sec):
+                for item in attachment_items:
+                    if os.path.exists(item["out_path"]):
+                        extracted_files.append(item["out_path"])
+            else:
+                # Fallback to per-attachment extraction if batched extraction fails
+                logger.warning("Batched attachment extraction failed; falling back to per-attachment extraction.")
+                for item in attachment_items:
+                    try:
+                        cmd = [
+                            "mkvextract",
+                            "--quiet",
+                            file_path,
+                            "attachments",
+                            item["spec"],
+                        ]
+                        if not MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec):
+                            continue
+                        extracted_files.append(item["out_path"])
+                    except subprocess.CalledProcessError as extract_error:
+                        logger.warning("Failed to extract attachment %s, skipping: %s", item["id"], extract_error)
+                        continue
+                    except Exception as item_error:
+                        logger.warning("Error processing attachment %s, skipping: %s", item["id"], item_error)
+                        continue
             
             if not extracted_files:
                 return None
@@ -472,13 +539,18 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_chapters(file_path: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
+    def extract_chapters(
+        file_path: str,
+        output_dir: Path = Path(EXTRACT_DIR),
+        info: MKVMergeReturnType | None = None,
+    ) -> MKVExtractReturnType | None:
         """
         Extracts chapters from the MKV file to the specified output directory.
         
         Args:
             file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted chapters.
+            info (MKVMergeReturnType | None): Pre-fetched mkvmerge info to avoid redundant calls.
 
         Returns:
             MKVExtractReturnType | None: An instance of MKVExtractReturnType containing the path
@@ -489,7 +561,8 @@ class MKVService:
 
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(file_path)
+            if info is None:
+                info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
@@ -530,13 +603,18 @@ class MKVService:
             return None
 
     @staticmethod
-    def extract_audio(file_path: str, output_dir: Path = Path(EXTRACT_DIR)) -> MKVExtractReturnType | None:
+    def extract_audio(
+        file_path: str,
+        output_dir: Path = Path(EXTRACT_DIR),
+        info: MKVMergeReturnType | None = None,
+    ) -> MKVExtractReturnType | None:
         """
         Extracts audio tracks from the MKV file to the specified output directory.
         
         Args:
             file_path (str): The path to the MKV file.
             output_dir (Path): The directory to save extracted audio.
+            info (MKVMergeReturnType | None): Pre-fetched mkvmerge info to avoid redundant calls.
 
         Returns:
             MKVExtractReturnType | None: An instance of MKVExtractReturnType containing the paths of
@@ -548,12 +626,13 @@ class MKVService:
 
         try:
             os.makedirs(output_dir, exist_ok=True)
-            info = MKVService.get_mkv_formatted_info(file_path)
+            if info is None:
+                info = MKVService.get_mkv_formatted_info(file_path)
 
             if not info:
                 return None
 
-            extracted_files = []
+            audio_items: list[dict] = []
             audio_track_number = 1
 
             for a_id in info.get("tracks", []):
@@ -604,33 +683,55 @@ class MKVService:
                             audio_name = f"audio_{audio_track_number}_{a_id['id']}.{audio_language}.{extension}"
 
                         out_path = os.path.join(output_dir, audio_name)
+                        audio_items.append({
+                            "id": a_id["id"],
+                            "out_path": out_path,
+                            "spec": f"{a_id['id']}:{out_path}",
+                        })
+                        audio_track_number += 1
+                    except Exception as item_error:
+                        logger.warning("Error processing audio track %s, skipping: %s", a_id.get("id"), item_error)
+                        audio_track_number += 1
+                        continue
 
-                        # Command to extract audio track
+            if not audio_items:
+                return None
+
+            extracted_files: list[str] = []
+            timeout_sec = MKVService.get_dynamic_timeout(file_path)
+
+            # Extract all audio tracks in a single pass
+            batch_cmd = [
+                "mkvextract",
+                "--quiet",
+                file_path,
+                "tracks",
+                *[item["spec"] for item in audio_items],
+            ]
+            if MKVService.extract_mkv_tracks(batch_cmd, timeout_sec=timeout_sec):
+                for item in audio_items:
+                    if os.path.exists(item["out_path"]):
+                        extracted_files.append(item["out_path"])
+            else:
+                # Fallback to per-track extraction if batched extraction fails
+                logger.warning("Batched audio extraction failed; falling back to per-track extraction.")
+                for item in audio_items:
+                    try:
                         cmd = [
                             "mkvextract",
                             "--quiet",
                             file_path,
                             "tracks",
-                            f"{a_id['id']}:{out_path}"
+                            item["spec"],
                         ]
-                        # Get dynamic timeout based on file size and whether it includes extracting the video track
-                        timeout_sec = MKVService.get_dynamic_timeout(file_path)
-
-                        # Command to extract audio track
-                        result = MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec)
-                        if not result:
-                            continue  # Skip to the next audio track if extraction failed
-
-                        # Append the successfully extracted file path to the list
-                        extracted_files.append(out_path)
-                        audio_track_number += 1
+                        if not MKVService.extract_mkv_tracks(cmd, timeout_sec=timeout_sec):
+                            continue
+                        extracted_files.append(item["out_path"])
                     except subprocess.CalledProcessError as extract_error:
-                        logger.warning("Failed to extract audio track %s, skipping: %s", a_id.get("id"), extract_error)
-                        audio_track_number += 1
+                        logger.warning("Failed to extract audio track %s, skipping: %s", item["id"], extract_error)
                         continue
                     except Exception as item_error:
-                        logger.warning("Error processing audio track %s, skipping: %s", a_id.get("id"), item_error)
-                        audio_track_number += 1
+                        logger.warning("Error processing audio track %s, skipping: %s", item["id"], item_error)
                         continue
 
             if not extracted_files:

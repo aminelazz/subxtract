@@ -1,5 +1,6 @@
 """Help extension for showing various bot commands."""
 
+import asyncio
 from interactions import Embed, Extension, slash_command, check, SlashContext
 from utils.logger import get_logger
 from utils.core import get_bot_infos, get_commands, is_allowed_channel
@@ -21,8 +22,8 @@ class Help(Extension):
             color="#800080"  # You can set the color of the embed
         )
 
-        bot_infos = get_bot_infos()
-        cmds: list[dict] = get_commands()
+        bot_infos = await asyncio.to_thread(get_bot_infos)
+        cmds: list[dict] = await asyncio.to_thread(get_commands)
 
         # Build a valid thumbnail URL. Discord application API may return an
         # avatar hash rather than a full URL, which causes the embed error

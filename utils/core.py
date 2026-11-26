@@ -159,13 +159,13 @@ async def download_file(
     try:
         progress = aria2_service.track_progress(gid)
         try:
-            status = next(progress)
+            status = await asyncio.to_thread(next, progress)
         except StopIteration:
             return True
 
         # Check for file size limit (Increased to 20 GB)
         if check_size and status.total_size_bytes > 20 * 1024 * 1024 * 1024: # More than 20 GB
-            aria2_service.remove_all_downloads(force=True)
+            await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
             await message.edit(
@@ -180,7 +180,7 @@ async def download_file(
                 content=f"Download error: {status.error if status.error else 'Unknown error occurred.'}"
             )
             logger.error("Download error: %s", status.error if status.error else 'Unknown error occurred.')
-            aria2_service.remove_all_downloads(force=True)
+            await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
             return False
@@ -197,10 +197,72 @@ async def download_file(
     except Exception as e:
         await ctx.send(f"An error occurred while tracking progress: {e}")
         logger.error("An error occurred while tracking progress: %s", e)
-        aria2_service.remove_all_downloads(force=True)
+        await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
         file_utils.clear_current_dl()
         file_utils.clear_temp()
         return False
+
+
+def _extract_single_mkv(
+    file: str,
+    workdir: Path,
+    extraction_type: str,
+) -> tuple[
+    mkv_service.MKVExtractReturnType | None,
+    mkv_service.MKVExtractReturnType | None,
+    mkv_service.MKVExtractReturnType | None,
+    mkv_service.MKVExtractReturnType | None,
+]:
+    """Runs synchronous MediaInfo and MKV extraction steps for a single MKV file."""
+    mkv_service_class = mkv_service.MKVService()
+
+    extracted_subs = None
+    extracted_attachments = None
+    extracted_audio = None
+    chapters = None
+
+    # Always save mediainfo
+    mediainfo = mkv_service_class.get_mediainfo(file)
+    if mediainfo:
+        file_utils.save_file_to_extract_dir(
+            content=mediainfo.encode("utf-8"),
+            file_name="mediainfo.txt",
+            path=workdir,
+        )
+
+    info = mkv_service_class.get_mkv_formatted_info(file)
+
+    # Extract based on type
+    if extraction_type in ["subtitles", "all", "all_without_audio"]:
+        extracted_subs = mkv_service_class.extract_subtitles(
+            file_path=file,
+            output_dir=workdir / "subtitles",
+            info=info,
+        )
+
+    if extraction_type in ["attachments", "all", "all_without_audio"]:
+        extracted_attachments = mkv_service_class.extract_attachments(
+            file_path=file,
+            output_dir=workdir / "attachments",
+            info=info,
+        )
+
+    if extraction_type in ["chapters", "all", "all_without_audio"]:
+        chapters = mkv_service_class.extract_chapters(
+            file_path=file,
+            output_dir=workdir,
+            info=info,
+        )
+
+    if extraction_type in ["audio", "all"]:
+        extracted_audio = mkv_service_class.extract_audio(
+            file_path=file,
+            output_dir=workdir / "audio",
+            info=info,
+        )
+
+    return extracted_subs, extracted_attachments, extracted_audio, chapters
+
 
 async def extract_and_upload(
         gid: str,
@@ -230,7 +292,7 @@ async def extract_and_upload(
     logger = get_logger("core.extract_and_upload")
 
     logger.info("Starting extraction of Matroska files from download with GID: %s", gid)
-    files = aria2_service.get_files(gid)
+    files = await asyncio.to_thread(aria2_service.get_files, gid)
 
     if not files or len(files) == 0:
         await ctx.send(
@@ -240,7 +302,7 @@ async def extract_and_upload(
             "No selected downloaded Matroska files found for GID %s; extraction aborted.",
             gid,
         )
-        aria2_service.remove_all_downloads(force=True)
+        await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
         file_utils.clear_current_dl()
         file_utils.clear_temp()
         return None
@@ -291,7 +353,7 @@ async def extract_and_upload(
 
         # Check for cancellation
         if event.is_set():
-            aria2_service.remove_all_downloads(force=True)
+            await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
             await ctx.send("Extraction has been cancelled.")
@@ -303,48 +365,12 @@ async def extract_and_upload(
         await message.edit(content=f"Processing selected file ({i}/{total_files})...")
         file = str(file_path)
         try:
-            mkv_service_class = mkv_service.MKVService()
-
-            # Initialize extraction results
-            extracted_subs = None
-            extracted_attachments = None
-            extracted_audio = None
-            chapters = None
-            mediainfo_path = None
-
-            # Always save mediainfo
-            mediainfo = mkv_service_class.get_mediainfo(file)
-            if mediainfo:
-                mediainfo_path = file_utils.save_file_to_extract_dir(
-                    content=mediainfo.encode("utf-8"),
-                    file_name="mediainfo.txt",
-                    path=workdir
-                )
-
-            # Extract based on type
-            if extraction_type in ["subtitles", "all", "all_without_audio"]:
-                extracted_subs = mkv_service_class.extract_subtitles(
-                    file_path=file,
-                    output_dir=workdir / "subtitles"
-                )
-
-            if extraction_type in ["attachments", "all", "all_without_audio"]:
-                extracted_attachments = mkv_service_class.extract_attachments(
-                    file_path=file,
-                    output_dir=workdir / "attachments"
-                )
-
-            if extraction_type in ["chapters", "all", "all_without_audio"]:
-                chapters = mkv_service_class.extract_chapters(
-                    file_path=file,
-                    output_dir=workdir
-                )
-
-            if extraction_type in ["audio", "all"]:
-                extracted_audio = mkv_service_class.extract_audio(
-                    file_path=file,
-                    output_dir=workdir / "audio"
-                )
+            extracted_subs, extracted_attachments, extracted_audio, chapters = await asyncio.to_thread(
+                _extract_single_mkv,
+                file,
+                workdir,
+                extraction_type,
+            )
 
             if not any([extracted_subs, extracted_attachments, extracted_audio, chapters]):
                 logger.warning(
@@ -369,15 +395,16 @@ async def extract_and_upload(
 
     # Add Parent folder to archive
     parent_folder = Path(EXTRACT_DIR) / dl_name
-    zip_file_path = file_utils.compress_directory(
+    zip_file_path = await asyncio.to_thread(
+        file_utils.compress_directory,
         folder_path=parent_folder,
-        zip_path=Path(EXTRACT_DIR) / f"{dl_name}.zip"
-        )
+        zip_path=Path(EXTRACT_DIR) / f"{dl_name}.zip",
+    )
 
     if zip_file_path is None:
         logger.error("Failed to create compressed archive for: %s", dl_name)
         await ctx.send(f"Error: Failed to create compressed archive for `{dl_name}`.")
-        aria2_service.remove_all_downloads(force=True)
+        await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
         file_utils.clear_current_dl()
         file_utils.clear_temp()
         return None
@@ -439,7 +466,7 @@ async def download_and_extract(
 
     try:
         #region Initial checks
-        connection_established = aria2_service.check_connection()
+        connection_established = await asyncio.to_thread(aria2_service.check_connection)
         if not connection_established:
             await ctx.send("Error: Unable to connect to Aria2 RPC server.")
             return False
@@ -457,16 +484,16 @@ async def download_and_extract(
 
         #region ---- Stage 1: Download ----
         message = await ctx.send("Starting download...")
-        gid = aria2_service.add_torrent(url)
+        gid = await asyncio.to_thread(aria2_service.add_torrent, url)
         await message.edit(content=f"Added download with GID: `{gid}`")
         logger.info("Started download with GID: %s", gid)
 
         #region Track METADATA/DDL links progress
-        status = aria2_service.get_status(gid)
+        status = await asyncio.to_thread(aria2_service.get_status, gid)
         while True:
             # Check for cancellation
             if extraction_cancel_event.is_set():
-                aria2_service.remove_all_downloads(force=True)
+                await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                 file_utils.clear_current_dl()
                 file_utils.clear_temp()
                 await message.edit(content="Download has been cancelled.")
@@ -482,18 +509,18 @@ async def download_and_extract(
 
         #region Verify completion
         try:
-            status = aria2_service.get_status(gid)
+            status = await asyncio.to_thread(aria2_service.get_status, gid)
             if status.status != "complete":
                 await ctx.send(f"Download failed or incomplete. Current status: {status.status}")
                 logger.error("Download failed or incomplete. Current status: %s", status.status)
-                aria2_service.remove_all_downloads(force=True)
+                await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                 file_utils.clear_current_dl()
                 file_utils.clear_temp()
                 return False
         except Exception as e:
             await ctx.send(f"An error occurred while verifying download: {e}")
             logger.error("An error occurred while verifying download: %s", e)
-            aria2_service.remove_all_downloads(force=True)
+            await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
             file_utils.clear_current_dl()
             file_utils.clear_temp()
             return False
@@ -504,7 +531,7 @@ async def download_and_extract(
             try:
                 # Check for cancellation
                 if extraction_cancel_event.is_set():
-                    aria2_service.remove_all_downloads(force=True)
+                    await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                     file_utils.clear_current_dl()
                     file_utils.clear_temp()
                     await message.edit(content="Torrent download has been cancelled.")
@@ -515,7 +542,7 @@ async def download_and_extract(
                 logger.info("Metadata downloaded, starting following download with GID: %s", gid)
                 if select:
                     selection_message = None
-                    aria2_service.pause_download(gid)
+                    await asyncio.to_thread(aria2_service.pause_download, gid)
                     logger.info("Paused torrent GID %s while waiting for file selection.", gid)
                     tunnel_url = get_tunnel_url()
                     if tunnel_url is None:
@@ -527,7 +554,7 @@ async def download_and_extract(
                             "Selection requested for GID %s, but no usable tunnel URL was found.",
                             gid,
                         )
-                        aria2_service.remove_all_downloads(force=True)
+                        await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                         file_utils.clear_current_dl()
                         file_utils.clear_temp()
                         return False
@@ -537,7 +564,7 @@ async def download_and_extract(
                             "File selection is unavailable because aria2 returned an invalid GID."
                         )
                         logger.error("Could not generate a four-digit PIN for GID %s.", gid)
-                        aria2_service.remove_all_downloads(force=True)
+                        await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                         file_utils.clear_current_dl()
                         file_utils.clear_temp()
                         return False
@@ -553,7 +580,7 @@ async def download_and_extract(
                     )
                     while True:
                         if extraction_cancel_event.is_set():
-                            aria2_service.remove_all_downloads(force=True)
+                            await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                             file_utils.clear_current_dl()
                             file_utils.clear_temp()
                             if selection_message is not None:
@@ -561,7 +588,7 @@ async def download_and_extract(
                             await message.edit(content="Download has been cancelled.")
                             logger.info("Torrent selection cancelled for GID %s.", gid)
                             return False
-                        torrent_status = aria2_service.get_status(gid)
+                        torrent_status = await asyncio.to_thread(aria2_service.get_status, gid)
                         torrent_state = torrent_status.status
                         # Check if the torrent has resumed after selection
                         if torrent_state in {"active", "waiting", "complete"}:
@@ -577,7 +604,7 @@ async def download_and_extract(
                                 gid,
                                 torrent_state,
                             )
-                            aria2_service.remove_all_downloads(force=True)
+                            await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                             file_utils.clear_current_dl()
                             file_utils.clear_temp()
                             return False
@@ -596,12 +623,12 @@ async def download_and_extract(
                                 exc,
                             )
                     logger.info("File selection submitted; resumed torrent GID %s.", gid)
-                status = aria2_service.get_status(gid)
+                status = await asyncio.to_thread(aria2_service.get_status, gid)
                 #region Track Torrent progress
                 while status.status != "complete":
                     # Check for cancellation
                     if extraction_cancel_event.is_set():
-                        aria2_service.remove_all_downloads(force=True)
+                        await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                         file_utils.clear_current_dl()
                         file_utils.clear_temp()
                         await message.edit(content="Download has been cancelled.")
@@ -618,19 +645,19 @@ async def download_and_extract(
             except Exception as e:
                 await ctx.send(f"An error occurred while downloading file: {e}")
                 logger.error("An error occurred while downloading file: %s", e)
-                aria2_service.remove_all_downloads(force=True)
+                await asyncio.to_thread(aria2_service.remove_all_downloads, force=True)
                 file_utils.clear_current_dl()
                 file_utils.clear_temp()
                 return False
         #endregion
 
-        dir_path = aria2_service.wait_for_completion(gid)
+        dir_path = await asyncio.to_thread(aria2_service.wait_for_completion, gid)
         await message.edit(content=f"Download complete! Saved to `{dir_path}`", components=[])
         logger.info("Download with GID: %s completed and saved to %s", gid, dir_path)
         #endregion
 
         #region ---- Stage 2: Extraction ----
-        dl_status = aria2_service.get_status(gid)
+        dl_status = await asyncio.to_thread(aria2_service.get_status, gid)
         
         # Extract file name and cut it to 100 characters to avoid issues with long names
         dl_name = dl_status.name[:100] if dl_status else "Unknown"
@@ -667,9 +694,10 @@ async def upload_and_send_to_discord(
         logger.warning("Archive file exceeds 20 MiB, splitting...")
         try:
             # Create split zip files
-            split_files = file_utils.create_split_zip(
+            split_files = await asyncio.to_thread(
+                file_utils.create_split_zip,
                 zip_path=Path(zip_file_path),
-                part_size=file_utils.DISCORD_MAX_FILE_SIZE
+                part_size=file_utils.DISCORD_MAX_FILE_SIZE,
             )
 
             files_to_upload.extend(split_files)
@@ -677,9 +705,10 @@ async def upload_and_send_to_discord(
             # Build merge commands if needed
             merge_commands = f"{get_merge_commands(split_files, dl_name)}\n"
             if merge_commands:
-                merge_commands_path = file_utils.save_file_to_extract_dir(
+                merge_commands_path = await asyncio.to_thread(
+                    file_utils.save_file_to_extract_dir,
                     content=merge_commands.encode("utf-8"),
-                    file_name="merge_commands.txt"
+                    file_name="merge_commands.txt",
                 )
                 files_to_upload.append(merge_commands_path)
 
